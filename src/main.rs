@@ -139,29 +139,47 @@ async fn handle_done() -> anyhow::Result<()> {
 
     let ticket = jira.get_ticket(&ticket_id).await?;
 
-    println!("{}", "  Creating merge request...".dimmed());
-    let gitlab = api::gitlab::GitLabClient::new(
-        settings.git.base_url.clone(),
-        settings.git.token.clone(),
-    );
-
-    let project_path = std::env::current_dir()?
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("unknown")
-        .to_string();
-
-    let mr_title = format!("{}: {}", ticket_id, ticket.fields.summary);
-    let mr_description = format!(
+    let pr_title = format!("{}: {}", ticket_id, ticket.fields.summary);
+    let pr_description = format!(
         "Resolves {}\n\nJira: {}/browse/{}",
         ticket_id,
         settings.jira.url,
         ticket_id
     );
 
-    let mr_url = gitlab
-        .create_merge_request(&project_path, &branch, "main", &mr_title, &mr_description)
-        .await?;
+    let pr_url = if settings.git.provider.to_lowercase() == "github" {
+        println!("{}", "  Creating pull request...".dimmed());
+        let owner = settings.git.owner.as_ref()
+            .ok_or_else(|| anyhow::anyhow!("GitHub owner not configured"))?;
+        let repo = settings.git.repo.as_ref()
+            .ok_or_else(|| anyhow::anyhow!("GitHub repo not configured"))?;
+
+        let github = api::github::GitHubClient::new(
+            owner.clone(),
+            repo.clone(),
+            settings.git.token.clone(),
+        );
+
+        github
+            .create_pull_request(&branch, "main", &pr_title, &pr_description)
+            .await?
+    } else {
+        println!("{}", "  Creating merge request...".dimmed());
+        let gitlab = api::gitlab::GitLabClient::new(
+            settings.git.base_url.clone(),
+            settings.git.token.clone(),
+        );
+
+        let project_path = std::env::current_dir()?
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("unknown")
+            .to_string();
+
+        gitlab
+            .create_merge_request(&project_path, &branch, "main", &pr_title, &pr_description)
+            .await?
+    };
 
     println!("{}", "  Updating Jira status to 'In Review'...".dimmed());
     match jira.update_status(&ticket_id, "In Review").await {
@@ -174,11 +192,17 @@ async fn handle_done() -> anyhow::Result<()> {
         }
     }
 
+    let pr_label = if settings.git.provider.to_lowercase() == "github" {
+        "PR:"
+    } else {
+        "MR:"
+    };
+
     println!();
     println!("{}", "All done! Ready for review!".green().bold());
     println!("  {} {}", "Ticket:".bold(), ticket_id.bright_white());
     println!("  {} {}", "Branch:".bold(), branch.bright_white());
-    println!("  {} {}", "MR:".bold(), mr_url.bright_cyan());
+    println!("  {} {}", pr_label.bold(), pr_url.bright_cyan());
 
     Ok(())
 }
@@ -396,16 +420,25 @@ async fn handle_init() -> anyhow::Result<()> {
     println!();
     println!("{}", "=== Git Configuration ===".bold());
     let git_provider = prompt_with_default("Git provider (gitlab/github)", "gitlab")?;
-    let git_url = prompt("Git base URL (e.g., https://git.<company>.com)")?;
-    println!();
-    println!(
-        "{}",
-        "For GitLab, create a token at: Settings > Access Tokens".dimmed()
-    );
-    println!(
-        "{}",
-        "For GitHub, create at: Settings > Developer settings > Personal access tokens".dimmed()
-    );
+
+    let (git_url, git_owner, git_repo) = if git_provider.to_lowercase() == "github" {
+        println!();
+        println!("{}", "For GitHub, create a token at:".dimmed());
+        println!("{}", "  Settings > Developer settings > Personal access tokens > Generate new token".dimmed());
+        println!("{}", "  Required scopes: repo (full control)".dimmed());
+        println!();
+        let owner = prompt("Repository owner (username or org)")?;
+        let repo = prompt("Repository name")?;
+        ("https://api.github.com".to_string(), Some(owner), Some(repo))
+    } else {
+        let url = prompt("GitLab base URL (e.g., https://git.<company>.com)")?;
+        println!();
+        println!("{}", "For GitLab, create a token at:".dimmed());
+        println!("{}", "  Settings > Access Tokens".dimmed());
+        println!("{}", "  Required scopes: api".dimmed());
+        (url, None, None)
+    };
+
     println!();
     let git_token = prompt_password("Git API token")?;
 
@@ -425,6 +458,8 @@ async fn handle_init() -> anyhow::Result<()> {
             provider: git_provider,
             base_url: git_url,
             token: git_token,
+            owner: git_owner,
+            repo: git_repo,
         },
         preferences: Preferences {
             branch_prefix,

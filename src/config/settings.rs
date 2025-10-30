@@ -22,6 +22,8 @@ pub struct GitConfig {
     pub provider: String,
     pub base_url: String,
     pub token: String,
+    pub owner: Option<String>,
+    pub repo: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -106,6 +108,8 @@ mod tests {
                 provider: "gitlab".to_string(),
                 base_url: "https://git.example.com".to_string(),
                 token: "git-token".to_string(),
+                owner: None,
+                repo: None,
             },
             preferences: Preferences {
                 branch_prefix: "feat".to_string(),

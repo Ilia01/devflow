@@ -1,15 +1,15 @@
 # DevFlow
 
-A blazing-fast CLI tool for automating Jira/Git workflows. Stop context switching between Jira, Git, and GitLab - manage your entire development workflow from the command line.
+A blazing-fast CLI tool for automating Jira/Git workflows. Stop context switching between Jira, Git, and GitHub/GitLab - manage your entire development workflow from the command line.
 
 ## Features
 
 - **Integrated Workflow**: One command to fetch Jira tickets, create branches, and update statuses
 - **Smart Branch Naming**: Automatically generates clean branch names from ticket summaries
 - **Automatic Commit Formatting**: Links commits to Jira tickets automatically
-- **MR Automation**: Push, create merge requests, and update Jira status in one command
+- **PR/MR Automation**: Push, create pull/merge requests, and update Jira status in one command
 - **Fast & Lightweight**: Written in Rust, single binary, no runtime dependencies
-- **Universal**: Works with any Jira instance and GitLab
+- **Universal**: Works with any Jira instance, GitHub, and GitLab
 
 ## Installation
 
@@ -74,9 +74,9 @@ devflow done
 
 This will:
 - Push your branch to remote
-- Create a merge request on GitLab
+- Create a pull request (GitHub) or merge request (GitLab)
 - Update Jira status to "In Review"
-- Display the MR URL
+- Display the PR/MR URL
 
 ### 5. Check Current Status
 
@@ -90,6 +90,7 @@ Shows your current branch and working directory status.
 
 Configuration file location: `~/.devflow/config.toml`
 
+**For GitLab:**
 ```toml
 [jira]
 url = "https://jira.company.com"
@@ -107,6 +108,26 @@ branch_prefix = "feat"
 default_transition = "In Progress"
 ```
 
+**For GitHub:**
+```toml
+[jira]
+url = "https://jira.company.com"
+email = "you@company.com"
+api_token = "your-api-token"
+project_key = "PROJ"
+
+[git]
+provider = "github"
+base_url = "https://api.github.com"
+token = "your-github-token"
+owner = "your-username"
+repo = "your-repo"
+
+[preferences]
+branch_prefix = "feat"
+default_transition = "In Progress"
+```
+
 ### Getting API Tokens
 
 **Jira API Token:**
@@ -117,6 +138,11 @@ default_transition = "In Progress"
 **GitLab Access Token:**
 1. Go to GitLab → Settings → Access Tokens
 2. Create token with `api` scope
+3. Copy and use in `devflow init`
+
+**GitHub Personal Access Token:**
+1. Go to GitHub → Settings → Developer settings → Personal access tokens → Generate new token
+2. Select `repo` scope (full control of private repositories)
 3. Copy and use in `devflow init`
 
 ## Commands
