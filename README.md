@@ -86,7 +86,18 @@ devflow list
 
 Shows all Jira tickets assigned to you in the current project.
 
-### 6. Check Current Status
+### 6. Open Ticket or PR in Browser
+
+```bash
+devflow open           # Opens current ticket in Jira
+devflow open WAB-1234  # Opens specific ticket
+devflow open --pr      # Opens PR/MR for current branch
+devflow open --board   # Opens Jira board
+```
+
+Quick way to jump to tickets or pull requests without leaving the terminal.
+
+### 7. Check Current Status
 
 ```bash
 devflow status

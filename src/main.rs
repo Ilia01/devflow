@@ -33,6 +33,20 @@ enum Commands {
     /// List assigned Jira tickets
     List,
 
+    /// Open ticket or PR in browser
+    Open {
+        /// Optional ticket ID (e.g., WAB-1234). If not provided, uses current branch
+        ticket_id: Option<String>,
+
+        /// Open the PR/MR instead of the ticket
+        #[arg(long)]
+        pr: bool,
+
+        /// Open the Jira board instead of ticket
+        #[arg(long)]
+        board: bool,
+    },
+
     Commit {
         message: String,
     },
@@ -67,6 +81,8 @@ async fn main() {
         Commands::Status => handle_status(),
 
         Commands::List => handle_list().await,
+
+        Commands::Open { ticket_id, pr, board } => handle_open(ticket_id.as_deref(), pr, board).await,
 
         Commands::Commit { message } => handle_commit(&message),
 
@@ -398,6 +414,69 @@ async fn handle_list() -> anyhow::Result<()> {
     Ok(())
 }
 
+async fn handle_open(ticket_id: Option<&str>, open_pr: bool, open_board: bool) -> anyhow::Result<()> {
+    use colored::*;
+    use config::settings::Settings;
+
+    let settings = Settings::load()?;
+
+    if open_board {
+        let board_url = format!("{}/jira/software/projects/{}/boards",
+            settings.jira.url,
+            settings.jira.project_key
+        );
+        println!("{} {}", "Opening board:".dimmed(), board_url.bright_white());
+        open::that(&board_url)?;
+        return Ok(());
+    }
+
+    let ticket_id = if let Some(id) = ticket_id {
+        id.to_string()
+    } else {
+        let git = api::git::GitClient::new()?;
+        let branch = git.current_branch()?;
+        extract_ticket_id(&branch)?
+    };
+
+    if open_pr {
+        let git = api::git::GitClient::new()?;
+        let branch = git.current_branch()?;
+
+        let pr_url = match settings.git.provider.as_str() {
+            "github" => {
+                let owner = settings.git.owner.as_ref()
+                    .ok_or_else(|| anyhow::anyhow!("GitHub owner not configured"))?;
+                let repo = settings.git.repo.as_ref()
+                    .ok_or_else(|| anyhow::anyhow!("GitHub repo not configured"))?;
+                format!("{}/{}/{}/pulls?q=is%3Apr+head%3A{}",
+                    settings.git.base_url.replace("api.", ""),
+                    owner,
+                    repo,
+                    urlencoding::encode(&branch)
+                )
+            },
+            "gitlab" => {
+                format!("{}/merge_requests?scope=all&state=opened&source_branch={}",
+                    settings.git.base_url,
+                    urlencoding::encode(&branch)
+                )
+            },
+            provider => anyhow::bail!("Unsupported provider: {}", provider)
+        };
+
+        println!("{} {}", "Opening PR/MR:".dimmed(), pr_url.bright_white());
+        open::that(&pr_url)?;
+        return Ok(());
+    }
+
+    // Default: Open Jira ticket
+    let ticket_url = format!("{}/browse/{}", settings.jira.url, ticket_id);
+    println!("{} {}", "Opening ticket:".dimmed(), ticket_url.bright_white());
+    open::that(&ticket_url)?;
+
+    Ok(())
+}
+
 fn handle_status() -> anyhow::Result<()> {
     use colored::*;
 
@@ -674,5 +753,47 @@ mod tests {
     fn test_extract_ticket_id_no_dash() {
         let result = extract_ticket_id("feat/nodash");
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_open_jira_url_generation() {
+        let jira_url = "https://jira.example.com";
+        let ticket_id = "WAB-1234";
+        let expected = format!("{}/browse/{}", jira_url, ticket_id);
+        assert_eq!(expected, "https://jira.example.com/browse/WAB-1234");
+    }
+
+    #[test]
+    fn test_open_board_url_generation() {
+        let jira_url = "https://jira.example.com";
+        let project_key = "WAB";
+        let expected = format!("{}/jira/software/projects/{}/boards", jira_url, project_key);
+        assert_eq!(expected, "https://jira.example.com/jira/software/projects/WAB/boards");
+    }
+
+    #[test]
+    fn test_open_github_pr_url_generation() {
+        let base_url = "https://api.github.com";
+        let owner = "testuser";
+        let repo = "testrepo";
+        let branch = "feat/WAB-1234/test";
+        let expected = format!("{}/{}/{}/pulls?q=is%3Apr+head%3A{}",
+            base_url.replace("api.", ""),
+            owner,
+            repo,
+            urlencoding::encode(branch)
+        );
+        assert_eq!(expected, "https://github.com/testuser/testrepo/pulls?q=is%3Apr+head%3Afeat%2FWAB-1234%2Ftest");
+    }
+
+    #[test]
+    fn test_open_gitlab_mr_url_generation() {
+        let base_url = "https://git.example.com";
+        let branch = "feat/WAB-1234/test";
+        let expected = format!("{}/merge_requests?scope=all&state=opened&source_branch={}",
+            base_url,
+            urlencoding::encode(branch)
+        );
+        assert_eq!(expected, "https://git.example.com/merge_requests?scope=all&state=opened&source_branch=feat%2FWAB-1234%2Ftest");
     }
 }

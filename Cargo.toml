@@ -40,6 +40,9 @@ git2 = "0.20"
 # URL encoding for API paths
 urlencoding = "2.1"
 
+# Cross-platform browser opening
+open = "5.0"
+
 [dev-dependencies]
 # HTTP mocking for tests
 mockito = "1.6"
