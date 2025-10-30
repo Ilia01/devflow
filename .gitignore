@@ -1,0 +1,6 @@
+/target
+Cargo.lock
+
+# Never commit config with credentials
+config.toml
+.devflow/
