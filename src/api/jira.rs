@@ -89,4 +89,206 @@ impl JiraClient {
 
         Ok(())
     }
+
+    pub async fn search_tickets(&self, project_key: &str) -> Result<Vec<crate::models::ticket::JiraTicket>> {
+        let jql = format!("assignee = currentUser() AND project = {}", project_key);
+        let url = format!("{}/rest/api/3/search", self.base_url);
+
+        let body = serde_json::json!({
+            "jql": jql,
+            "fields": ["summary", "status", "assignee"],
+            "maxResults": 50
+        });
+
+        let response = self
+            .client
+            .post(&url)
+            .basic_auth(&self.email, Some(&self.api_token))
+            .json(&body)
+            .send()
+            .await
+            .context("Failed to search tickets")?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let text = response.text().await.unwrap_or_default();
+            anyhow::bail!("Jira search API error ({}): {}", status, text);
+        }
+
+        let result: serde_json::Value = response.json().await.context("Failed to parse search response")?;
+        let issues = result["issues"].as_array().context("No issues in response")?;
+
+        let tickets: Vec<crate::models::ticket::JiraTicket> = issues
+            .iter()
+            .filter_map(|issue| serde_json::from_value(issue.clone()).ok())
+            .collect();
+
+        Ok(tickets)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_jira_client_creation() {
+        let client = JiraClient::new(
+            "https://jira.example.com".to_string(),
+            "test@example.com".to_string(),
+            "test-token".to_string(),
+        );
+        assert_eq!(client.base_url, "https://jira.example.com");
+        assert_eq!(client.email, "test@example.com");
+        assert_eq!(client.api_token, "test-token");
+    }
+
+    #[tokio::test]
+    async fn test_search_tickets_success() {
+        let mut server = mockito::Server::new_async().await;
+
+        let mock_response = serde_json::json!({
+            "issues": [
+                {
+                    "key": "WAB-123",
+                    "fields": {
+                        "summary": "Test ticket 1",
+                        "status": {
+                            "name": "In Progress"
+                        }
+                    }
+                },
+                {
+                    "key": "WAB-124",
+                    "fields": {
+                        "summary": "Test ticket 2",
+                        "status": {
+                            "name": "To Do"
+                        }
+                    }
+                }
+            ]
+        });
+
+        let _m = server
+            .mock("POST", "/rest/api/3/search")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(mock_response.to_string())
+            .create_async()
+            .await;
+
+        let client = JiraClient::new(
+            server.url(),
+            "test@example.com".to_string(),
+            "test-token".to_string(),
+        );
+
+        let tickets = client.search_tickets("WAB").await.unwrap();
+
+        assert_eq!(tickets.len(), 2);
+        assert_eq!(tickets[0].key, "WAB-123");
+        assert_eq!(tickets[0].fields.summary, "Test ticket 1");
+        assert_eq!(tickets[0].fields.status.name, "In Progress");
+        assert_eq!(tickets[1].key, "WAB-124");
+        assert_eq!(tickets[1].fields.summary, "Test ticket 2");
+    }
+
+    #[tokio::test]
+    async fn test_search_tickets_empty_results() {
+        let mut server = mockito::Server::new_async().await;
+
+        let mock_response = serde_json::json!({
+            "issues": []
+        });
+
+        let _m = server
+            .mock("POST", "/rest/api/3/search")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(mock_response.to_string())
+            .create_async()
+            .await;
+
+        let client = JiraClient::new(
+            server.url(),
+            "test@example.com".to_string(),
+            "test-token".to_string(),
+        );
+
+        let tickets = client.search_tickets("WAB").await.unwrap();
+        assert_eq!(tickets.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_search_tickets_api_error() {
+        let mut server = mockito::Server::new_async().await;
+
+        let _m = server
+            .mock("POST", "/rest/api/3/search")
+            .with_status(401)
+            .with_body("Unauthorized")
+            .create_async()
+            .await;
+
+        let client = JiraClient::new(
+            server.url(),
+            "test@example.com".to_string(),
+            "invalid-token".to_string(),
+        );
+
+        let result = client.search_tickets("WAB").await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Jira search API error"));
+    }
+
+    #[tokio::test]
+    async fn test_search_tickets_invalid_json() {
+        let mut server = mockito::Server::new_async().await;
+
+        let _m = server
+            .mock("POST", "/rest/api/3/search")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body("invalid json")
+            .create_async()
+            .await;
+
+        let client = JiraClient::new(
+            server.url(),
+            "test@example.com".to_string(),
+            "test-token".to_string(),
+        );
+
+        let result = client.search_tickets("WAB").await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Failed to parse search response"));
+    }
+
+    #[tokio::test]
+    async fn test_search_tickets_missing_issues_field() {
+        let mut server = mockito::Server::new_async().await;
+
+        let mock_response = serde_json::json!({
+            "no_issues_field": []
+        });
+
+        let _m = server
+            .mock("POST", "/rest/api/3/search")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(mock_response.to_string())
+            .create_async()
+            .await;
+
+        let client = JiraClient::new(
+            server.url(),
+            "test@example.com".to_string(),
+            "test-token".to_string(),
+        );
+
+        let result = client.search_tickets("WAB").await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("No issues in response"));
+    }
 }
