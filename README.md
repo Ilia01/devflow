@@ -78,7 +78,15 @@ This will:
 - Update Jira status to "In Review"
 - Display the MR URL
 
-### 5. Check Current Status
+### 5. List Your Assigned Tickets
+
+```bash
+devflow list
+```
+
+Shows all Jira tickets assigned to you in the current project.
+
+### 6. Check Current Status
 
 ```bash
 devflow status
@@ -126,6 +134,7 @@ default_transition = "In Progress"
 | `devflow init` | Set up configuration and credentials |
 | `devflow start <ticket>` | Start work on a Jira ticket |
 | `devflow status` | Show current branch and git status |
+| `devflow list` | List all assigned Jira tickets |
 | `devflow commit <message>` | Commit with automatic ticket reference |
 | `devflow done` | Push, create MR, and update Jira |
 

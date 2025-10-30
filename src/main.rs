@@ -30,6 +30,9 @@ enum Commands {
     /// Show current ticket and branch status
     Status,
 
+    /// List assigned Jira tickets
+    List,
+
     Commit {
         message: String,
     },
@@ -62,6 +65,8 @@ async fn main() {
         Commands::Start { ticket_id } => handle_start(&ticket_id).await,
 
         Commands::Status => handle_status(),
+
+        Commands::List => handle_list().await,
 
         Commands::Commit { message } => handle_commit(&message),
 
@@ -324,6 +329,49 @@ fn format_branch_name(prefix: &str, ticket_id: &str, summary: &str) -> String {
     } else {
         format!("{}/{}/{}", prefix, ticket_id, slug)
     }
+}
+
+async fn handle_list() -> anyhow::Result<()> {
+    use colored::*;
+    use config::settings::Settings;
+
+    println!("{}", "Your Assigned Tickets".cyan().bold());
+    println!();
+
+    let settings = Settings::load()?;
+    let jira = api::jira::JiraClient::new(
+        settings.jira.url.clone(),
+        settings.jira.email.clone(),
+        settings.jira.api_token.clone(),
+    );
+
+    let tickets = jira.search_tickets(&settings.jira.project_key).await?;
+
+    if tickets.is_empty() {
+        println!("{}", "  No tickets assigned to you".dimmed());
+        return Ok(());
+    }
+
+    println!("{}  {} tickets found", "".dimmed(), tickets.len().to_string().bright_white());
+    println!();
+
+    for ticket in tickets {
+        let status_color = match ticket.fields.status.name.as_str() {
+            "In Progress" => ticket.fields.status.name.green(),
+            "To Do" => ticket.fields.status.name.yellow(),
+            "In Review" | "Code Review" => ticket.fields.status.name.blue(),
+            "Done" => ticket.fields.status.name.bright_black(),
+            _ => ticket.fields.status.name.normal(),
+        };
+
+        println!("  {} [{}]  {}",
+            ticket.key.bright_white().bold(),
+            status_color,
+            ticket.fields.summary
+        );
+    }
+
+    Ok(())
 }
 
 fn handle_status() -> anyhow::Result<()> {
