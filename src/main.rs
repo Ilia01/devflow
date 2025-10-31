@@ -36,7 +36,19 @@ enum Commands {
     Status,
 
     /// List assigned Jira tickets
-    List,
+    List {
+        /// Filter by status (e.g., "To Do", "In Progress")
+        #[arg(long)]
+        status: Option<String>,
+
+        /// Filter by project key
+        #[arg(long)]
+        project: Option<String>,
+
+        /// Output as JSON for scripting
+        #[arg(long)]
+        json: bool,
+    },
 
     /// Search Jira tickets
     Search {
@@ -107,7 +119,9 @@ async fn main() {
 
         Commands::Status => handle_status(),
 
-        Commands::List => handle_list().await,
+        Commands::List { status, project, json } => {
+            handle_list(status.as_deref(), project.as_deref(), json).await
+        }
 
         Commands::Search { query, assignee, status, project, limit } => {
             handle_search(&query, assignee.as_deref(), status.as_deref(), project.as_deref(), limit).await
@@ -407,21 +421,46 @@ fn format_branch_name(prefix: &str, ticket_id: &str, summary: &str) -> String {
     }
 }
 
-async fn handle_list() -> anyhow::Result<()> {
+async fn handle_list(
+    status_filter: Option<&str>,
+    project_filter: Option<&str>,
+    json_output: bool,
+) -> anyhow::Result<()> {
     use colored::*;
     use config::settings::Settings;
 
-    println!("{}", "Your Assigned Tickets".cyan().bold());
-    println!();
-
-    let settings = Settings::load()?;
+    let settings = Settings::load().map_err(|e| anyhow::anyhow!("{}", e))?;
     let jira = api::jira::JiraClient::new(
         settings.jira.url.clone(),
         settings.jira.email.clone(),
         settings.jira.api_token.clone(),
     );
 
-    let tickets = jira.search_tickets(&settings.jira.project_key).await?;
+    // Build JQL query with filters
+    let mut jql_parts = vec!["assignee = currentUser()".to_string()];
+
+    let project_key = project_filter.unwrap_or(&settings.jira.project_key);
+    jql_parts.push(format!("project = {}", project_key));
+
+    if let Some(status) = status_filter {
+        jql_parts.push(format!("status = \"{}\"", status));
+    }
+
+    let jql = jql_parts.join(" AND ");
+    let tickets = jira.search_with_jql(&jql, 50).await?;
+
+    // JSON output
+    if json_output {
+        let json = serde_json::to_string_pretty(&tickets)?;
+        println!("{}", json);
+        return Ok(());
+    }
+
+    // Pretty terminal output
+    if !json_output {
+        println!("{}", "Your Assigned Tickets".cyan().bold());
+        println!();
+    }
 
     if tickets.is_empty() {
         println!("{}", "  No tickets assigned to you".dimmed());
