@@ -3,6 +3,7 @@ use colored::*;
 
 mod api;
 mod config;
+mod errors;
 mod models;
 
 #[derive(Parser)]
@@ -10,6 +11,10 @@ mod models;
 #[command(version = "0.1.0")]
 #[command(about = "Automate your Jira/Git workflow", long_about = None)]
 struct Cli {
+    /// for debugging purposes
+    #[arg(short, long, global = true)]
+    verbose: bool,
+
     #[command(subcommand)]
     command: Commands,
 }
