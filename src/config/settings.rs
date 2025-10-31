@@ -1,6 +1,7 @@
-use anyhow::{Context, Result};
+use anyhow::Context;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use crate::errors::{DevFlowError, Result};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Settings {
@@ -34,19 +35,18 @@ pub struct Preferences {
 
 impl Settings {
     pub fn load() -> Result<Self> {
-        let config_path = Self::config_path()?;
+        let config_path = Self::config_path()
+            .map_err(|e| DevFlowError::ConfigInvalid(e.to_string()))?;
 
         if !config_path.exists() {
-            anyhow::bail!(
-                "Configuration not found. Run 'devflow init' to set up your credentials."
-            );
+            return Err(DevFlowError::ConfigNotFound);
         }
 
         let config_str = std::fs::read_to_string(&config_path)
-            .context("Failed to read config file")?;
+            .map_err(|e| DevFlowError::ConfigInvalid(format!("Failed to read config file: {}", e)))?;
 
         let settings: Settings = toml::from_str(&config_str)
-            .context("Failed to parse config file")?;
+            .map_err(|e| DevFlowError::ConfigInvalid(format!("Failed to parse config file: {}", e)))?;
 
         Ok(settings)
     }

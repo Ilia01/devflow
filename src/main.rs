@@ -128,7 +128,7 @@ async fn main() {
     };
 
     if let Err(e) = result {
-        eprintln!("\n{} {}", "Error:".red().bold(), e);
+        eprintln!("\n{}", e);
         std::process::exit(1);
     }
 
@@ -173,10 +173,15 @@ async fn handle_done() -> anyhow::Result<()> {
     println!("{}", "Finalizing work...".cyan().bold());
     println!();
 
-    let settings = Settings::load()?;
-    let git = api::git::GitClient::new()?;
+    let settings = Settings::load().map_err(|e| anyhow::anyhow!("{}", e))?;
+    let git = api::git::GitClient::new().map_err(|e| anyhow::anyhow!("{}", e))?;
 
-    let branch = git.current_branch()?;
+    // Check if working directory is clean
+    if !git.is_clean().map_err(|e| anyhow::anyhow!("{}", e))? {
+        return Err(anyhow::anyhow!("{}", errors::DevFlowError::GitRepoNotClean));
+    }
+
+    let branch = git.current_branch().map_err(|e| anyhow::anyhow!("{}", e))?;
     let ticket_id = extract_ticket_id(&branch)?;
 
     println!("{}", "  Pushing branch to remote...".dimmed());
@@ -355,7 +360,7 @@ fn extract_ticket_id(branch_name: &str) -> anyhow::Result<String> {
     let parts: Vec<&str> = branch_name.split('/').collect();
 
     if parts.len() < 2 {
-        anyhow::bail!("Branch name doesn't contain a ticket ID");
+        return Err(anyhow::anyhow!("{}", errors::DevFlowError::BranchHasNoTicketId(branch_name.to_string())));
     }
 
     let ticket_part = parts[1];
@@ -367,12 +372,12 @@ fn extract_ticket_id(branch_name: &str) -> anyhow::Result<String> {
             .join("-");
 
         if ticket_id.is_empty() {
-            anyhow::bail!("Could not extract ticket ID from branch name");
+            return Err(anyhow::anyhow!("{}", errors::DevFlowError::BranchHasNoTicketId(branch_name.to_string())));
         }
 
         Ok(ticket_id)
     } else {
-        anyhow::bail!("Branch name doesn't contain a valid ticket ID format")
+        Err(anyhow::anyhow!("{}", errors::DevFlowError::BranchHasNoTicketId(branch_name.to_string())))
     }
 }
 

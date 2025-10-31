@@ -1,6 +1,7 @@
-use anyhow::{Context, Result};
+use anyhow::Context;
 use colored::*;
 use git2::Repository;
+use crate::errors::{DevFlowError, Result};
 
 pub struct GitClient {
     repo: Repository,
@@ -9,23 +10,30 @@ pub struct GitClient {
 impl GitClient {
     pub fn new() -> Result<Self> {
         let repo = Repository::open_from_env()
-            .context("Not in a git repository. Make sure you're inside a git project.")?;
+            .map_err(|_| DevFlowError::NotInGitRepo)?;
 
         Ok(Self { repo })
     }
 
+    pub fn is_clean(&self) -> Result<bool> {
+        let statuses = self.repo.statuses(None)
+            .map_err(|e| DevFlowError::Other(format!("Failed to get git status: {}", e)))?;
+        Ok(statuses.is_empty())
+    }
+
     pub fn current_branch(&self) -> Result<String> {
-        let head = self.repo.head().context("Failed to get HEAD reference")?;
+        let head = self.repo.head()
+            .map_err(|e| DevFlowError::Other(format!("Failed to get HEAD reference: {}", e)))?;
 
         if head.is_branch() {
             let branch_name = head
                 .shorthand()
-                .context("Branch name contains invalid UTF-8")?
+                .ok_or_else(|| DevFlowError::Other("Branch name contains invalid UTF-8".to_string()))?
                 .to_string();
 
             Ok(branch_name)
         } else {
-            anyhow::bail!("Not currently on a branch (detached HEAD state)")
+            Err(DevFlowError::Other("Not currently on a branch (detached HEAD state)".to_string()))
         }
     }
 
@@ -60,7 +68,8 @@ impl GitClient {
     }
 
     pub fn status_summary(&self) -> Result<String> {
-        let statuses = self.repo.statuses(None)?;
+        let statuses = self.repo.statuses(None)
+            .map_err(|e| DevFlowError::Other(format!("Failed to get git status: {}", e)))?;
 
         if statuses.is_empty() {
             return Ok("  Working directory clean".to_string());
