@@ -761,23 +761,63 @@ async fn handle_init() -> anyhow::Result<()> {
 
     let settings = Settings {
         jira: JiraConfig {
-            url: jira_url,
-            email: jira_email,
-            api_token: jira_token,
-            project_key,
+            url: jira_url.clone(),
+            email: jira_email.clone(),
+            api_token: jira_token.clone(),
+            project_key: project_key.clone(),
         },
         git: GitConfig {
-            provider: git_provider,
-            base_url: git_url,
-            token: git_token,
-            owner: git_owner,
-            repo: git_repo,
+            provider: git_provider.clone(),
+            base_url: git_url.clone(),
+            token: git_token.clone(),
+            owner: git_owner.clone(),
+            repo: git_repo.clone(),
         },
         preferences: Preferences {
             branch_prefix,
             default_transition,
         },
     };
+
+    println!();
+    println!("{}", "Validating configuration...".cyan());
+    println!();
+
+    print!("{}", "  Testing Jira connection... ".dimmed());
+    let jira_client = api::jira::JiraClient::new(
+        jira_url.clone(),
+        jira_email.clone(),
+        jira_token.clone(),
+    );
+
+    match jira_client.search_with_jql(&format!("project = {}", project_key), 1).await {
+        Ok(_) => {
+            println!("{}", "✓".green().bold());
+        }
+        Err(e) => {
+            println!("{}", "✗".red().bold());
+            return Err(anyhow::anyhow!("{}",
+                errors::DevFlowError::ConfigValidationFailed(
+                    format!("Jira connection failed: {}", e)
+                )
+            ));
+        }
+    }
+
+    print!("{}", "  Checking Git token... ".dimmed());
+    if git_token.is_empty() {
+        println!("{}", "✗".red().bold());
+        return Err(anyhow::anyhow!("{}",
+            errors::DevFlowError::ConfigValidationFailed(
+                "Git token cannot be empty".to_string()
+            )
+        ));
+    }
+    println!("{}", "✓".green().bold());
+
+    println!();
+    println!("{}", "✓ All validations passed!".green().bold());
+    println!();
 
     settings.save()?;
 
