@@ -204,3 +204,142 @@ impl From<reqwest::Error> for DevFlowError {
 }
 
 pub type Result<T> = std::result::Result<T, DevFlowError>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_config_not_found_error_display() {
+        let err = DevFlowError::ConfigNotFound;
+        let output = format!("{}", err);
+        assert!(output.contains("Configuration not found"));
+        assert!(output.contains("devflow init"));
+    }
+
+    #[test]
+    fn test_config_invalid_error_display() {
+        let err = DevFlowError::ConfigInvalid("Invalid TOML syntax".to_string());
+        let output = format!("{}", err);
+        assert!(output.contains("Invalid configuration"));
+        assert!(output.contains("Invalid TOML syntax"));
+        assert!(output.contains("config.toml"));
+    }
+
+    #[test]
+    fn test_config_validation_failed_display() {
+        let err = DevFlowError::ConfigValidationFailed("Jira connection failed".to_string());
+        let output = format!("{}", err);
+        assert!(output.contains("Configuration validation failed"));
+        assert!(output.contains("Jira connection failed"));
+    }
+
+    #[test]
+    fn test_jira_auth_failed_error_display() {
+        let err = DevFlowError::JiraAuthFailed(401);
+        let output = format!("{}", err);
+        assert!(output.contains("Jira authentication failed"));
+        assert!(output.contains("401"));
+        assert!(output.contains("API token"));
+    }
+
+    #[test]
+    fn test_jira_ticket_not_found_display() {
+        let err = DevFlowError::JiraTicketNotFound("WAB-1234".to_string());
+        let output = format!("{}", err);
+        assert!(output.contains("WAB-1234"));
+        assert!(output.contains("not found"));
+        assert!(output.contains("devflow search"));
+    }
+
+    #[test]
+    fn test_not_in_git_repo_error_display() {
+        let err = DevFlowError::NotInGitRepo;
+        let output = format!("{}", err);
+        assert!(output.contains("Not in a git repository"));
+        assert!(output.contains("git init"));
+    }
+
+    #[test]
+    fn test_git_repo_not_clean_error_display() {
+        let err = DevFlowError::GitRepoNotClean;
+        let output = format!("{}", err);
+        assert!(output.contains("Uncommitted changes detected"));
+        assert!(output.contains("devflow commit"));
+        assert!(output.contains("git stash"));
+    }
+
+    #[test]
+    fn test_branch_has_no_ticket_id_display() {
+        let err = DevFlowError::BranchHasNoTicketId("main".to_string());
+        let output = format!("{}", err);
+        assert!(output.contains("Branch doesn't contain a ticket ID"));
+        assert!(output.contains("main"));
+        assert!(output.contains("devflow start"));
+    }
+
+    #[test]
+    fn test_branch_already_exists_display() {
+        let err = DevFlowError::BranchAlreadyExists("feat/WAB-123".to_string());
+        let output = format!("{}", err);
+        assert!(output.contains("feat/WAB-123"));
+        assert!(output.contains("already exists"));
+    }
+
+    #[test]
+    fn test_network_error_display() {
+        let err = DevFlowError::NetworkError("Connection timeout".to_string());
+        let output = format!("{}", err);
+        assert!(output.contains("Network error"));
+        assert!(output.contains("Connection timeout"));
+        assert!(output.contains("internet connection"));
+    }
+
+    #[test]
+    fn test_github_auth_failed_display() {
+        let err = DevFlowError::GitHubAuthFailed;
+        let output = format!("{}", err);
+        assert!(output.contains("GitHub authentication failed"));
+        assert!(output.contains("token"));
+    }
+
+    #[test]
+    fn test_gitlab_auth_failed_display() {
+        let err = DevFlowError::GitLabAuthFailed;
+        let output = format!("{}", err);
+        assert!(output.contains("GitLab authentication failed"));
+        assert!(output.contains("token"));
+    }
+
+    #[test]
+    fn test_from_io_error() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found");
+        let dev_err: DevFlowError = io_err.into();
+        match dev_err {
+            DevFlowError::Other(_) => {}, // Expected
+            _ => panic!("Expected Other variant"),
+        }
+    }
+
+    #[test]
+    fn test_error_trait_implementation() {
+        let err = DevFlowError::ConfigNotFound;
+        let _: &dyn std::error::Error = &err; // Should compile if Error trait is implemented
+    }
+
+    #[test]
+    fn test_result_type_alias() {
+        fn returns_result() -> Result<String> {
+            Ok("success".to_string())
+        }
+        assert!(returns_result().is_ok());
+    }
+
+    #[test]
+    fn test_result_type_with_error() {
+        fn returns_error() -> Result<String> {
+            Err(DevFlowError::ConfigNotFound)
+        }
+        assert!(returns_error().is_err());
+    }
+}
