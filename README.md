@@ -40,6 +40,8 @@ This will prompt you for:
 - GitLab URL and access token
 - Workflow preferences (branch prefix, default transition)
 
+**Configuration Validation:** DevFlow automatically tests your Jira connection during setup to ensure credentials are valid before saving.
+
 Configuration is stored securely at `~/.devflow/config.toml` with 600 permissions.
 
 ### 2. Start Working on a Ticket
@@ -81,10 +83,13 @@ This will:
 ### 5. List Your Assigned Tickets
 
 ```bash
-devflow list
+devflow list                           # All your tickets
+devflow list --status "To Do"          # Filter by status
+devflow list --project WAB             # Different project
+devflow list --json                    # JSON output for scripting
 ```
 
-Shows all Jira tickets assigned to you in the current project.
+Shows all Jira tickets assigned to you with optional filtering.
 
 ### 6. Open Ticket or PR in Browser
 
@@ -100,13 +105,15 @@ Quick way to jump to tickets or pull requests without leaving the terminal.
 ### 7. Search Jira Tickets
 
 ```bash
-devflow search "login bug"                    # Search by text
-devflow search "auth" --assignee me           # My tickets matching "auth"
-devflow search "API" --status "To Do"         # By status
-devflow search "bug" --project WAB --limit 20 # Different project, more results
+devflow search "login bug"                       # Search by text
+devflow search "auth" --assignee me              # My tickets matching "auth"
+devflow search "API" --status "To Do"            # By status
+devflow search "bug" --project WAB --limit 20    # Different project, more results
+devflow search "auth" --interactive              # Interactive mode - select ticket to start work
+devflow search "bug" -i                          # Short form of --interactive
 ```
 
-Searches ticket summaries and descriptions with optional filters.
+Searches ticket summaries and descriptions with optional filters. Use `--interactive` to select a ticket and immediately start working on it.
 
 ### 8. Check Current Status
 
