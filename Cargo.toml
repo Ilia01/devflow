@@ -43,6 +43,9 @@ urlencoding = "2.1"
 # Cross-platform browser opening
 open = "5.0"
 
+# Interactive prompts
+dialoguer = "0.11"
+
 [dev-dependencies]
 # HTTP mocking for tests
 mockito = "1.6"

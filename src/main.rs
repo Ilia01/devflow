@@ -70,6 +70,10 @@ enum Commands {
         /// Maximum number of results (default: 10)
         #[arg(long, default_value = "10")]
         limit: u32,
+
+        /// Interactive mode - select a ticket to start working on
+        #[arg(long, short)]
+        interactive: bool,
     },
 
     /// Open ticket or PR in browser
@@ -123,8 +127,8 @@ async fn main() {
             handle_list(status.as_deref(), project.as_deref(), json).await
         }
 
-        Commands::Search { query, assignee, status, project, limit } => {
-            handle_search(&query, assignee.as_deref(), status.as_deref(), project.as_deref(), limit).await
+        Commands::Search { query, assignee, status, project, limit, interactive } => {
+            handle_search(&query, assignee.as_deref(), status.as_deref(), project.as_deref(), limit, interactive).await
         }
 
         Commands::Open { ticket_id, pr, board } => handle_open(ticket_id.as_deref(), pr, board).await,
@@ -495,6 +499,7 @@ async fn handle_search(
     status: Option<&str>,
     project: Option<&str>,
     limit: u32,
+    interactive: bool,
 ) -> anyhow::Result<()> {
     use colored::*;
     use config::settings::Settings;
@@ -502,7 +507,7 @@ async fn handle_search(
     println!("{}", format!("Searching for: \"{}\"", query).cyan().bold());
     println!();
 
-    let settings = Settings::load()?;
+    let settings = Settings::load().map_err(|e| anyhow::anyhow!("{}", e))?;
     let jira = api::jira::JiraClient::new(
         settings.jira.url.clone(),
         settings.jira.email.clone(),
@@ -563,6 +568,32 @@ async fn handle_search(
     if tickets.len() == limit as usize {
         println!();
         println!("{}", format!("  Showing {} of potentially more results. Use --limit to see more.", limit).dimmed());
+    }
+
+    // Interactive mode - let user select a ticket to start work
+    if interactive {
+        use dialoguer::Select;
+
+        println!();
+        let items: Vec<String> = tickets.iter().map(|t| {
+            format!("{} [{}] {}", t.key, t.fields.status.name, t.fields.summary)
+        }).collect();
+
+        let selection = Select::new()
+            .with_prompt("Select a ticket to start working on")
+            .items(&items)
+            .interact_opt()?;
+
+        if let Some(index) = selection {
+            let selected_ticket = &tickets[index];
+            println!();
+            println!("{}", format!("Starting work on {}...", selected_ticket.key).cyan().bold());
+
+            // Call handle_start with the selected ticket
+            return handle_start(&selected_ticket.key).await;
+        } else {
+            println!("\n{}", "No ticket selected".yellow());
+        }
     }
 
     Ok(())
