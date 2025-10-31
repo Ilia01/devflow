@@ -33,6 +33,28 @@ enum Commands {
     /// List assigned Jira tickets
     List,
 
+    /// Search Jira tickets
+    Search {
+        /// Search text (searches in summary and description)
+        query: String,
+
+        /// Filter by assignee (use "me" for current user)
+        #[arg(long)]
+        assignee: Option<String>,
+
+        /// Filter by status (e.g., "To Do", "In Progress")
+        #[arg(long)]
+        status: Option<String>,
+
+        /// Filter by project key
+        #[arg(long)]
+        project: Option<String>,
+
+        /// Maximum number of results (default: 10)
+        #[arg(long, default_value = "10")]
+        limit: u32,
+    },
+
     /// Open ticket or PR in browser
     Open {
         /// Optional ticket ID (e.g., WAB-1234). If not provided, uses current branch
@@ -81,6 +103,10 @@ async fn main() {
         Commands::Status => handle_status(),
 
         Commands::List => handle_list().await,
+
+        Commands::Search { query, assignee, status, project, limit } => {
+            handle_search(&query, assignee.as_deref(), status.as_deref(), project.as_deref(), limit).await
+        }
 
         Commands::Open { ticket_id, pr, board } => handle_open(ticket_id.as_deref(), pr, board).await,
 
@@ -409,6 +435,85 @@ async fn handle_list() -> anyhow::Result<()> {
             status_color,
             ticket.fields.summary
         );
+    }
+
+    Ok(())
+}
+
+async fn handle_search(
+    query: &str,
+    assignee: Option<&str>,
+    status: Option<&str>,
+    project: Option<&str>,
+    limit: u32,
+) -> anyhow::Result<()> {
+    use colored::*;
+    use config::settings::Settings;
+
+    println!("{}", format!("Searching for: \"{}\"", query).cyan().bold());
+    println!();
+
+    let settings = Settings::load()?;
+    let jira = api::jira::JiraClient::new(
+        settings.jira.url.clone(),
+        settings.jira.email.clone(),
+        settings.jira.api_token.clone(),
+    );
+
+    let mut jql_parts = Vec::new();
+
+    jql_parts.push(format!("(summary ~ \"{}\" OR description ~ \"{}\")", query, query));
+
+    let project_key = project.unwrap_or(&settings.jira.project_key);
+    jql_parts.push(format!("project = {}", project_key));
+
+    if let Some(assignee_val) = assignee {
+        if assignee_val == "me" {
+            jql_parts.push("assignee = currentUser()".to_string());
+        } else {
+            jql_parts.push(format!("assignee = \"{}\"", assignee_val));
+        }
+    }
+
+    if let Some(status_val) = status {
+        jql_parts.push(format!("status = \"{}\"", status_val));
+    }
+
+    let jql = jql_parts.join(" AND ");
+
+    println!("{}", format!("  JQL: {}", jql).dimmed());
+    println!();
+
+    let tickets = jira.search_with_jql(&jql, limit).await?;
+
+    if tickets.is_empty() {
+        println!("{}", "  No tickets found".dimmed());
+        return Ok(());
+    }
+
+    println!("{} {} results", "".dimmed(), tickets.len().to_string().bright_white());
+    println!();
+
+    for (i, ticket) in tickets.iter().enumerate() {
+        let status_color = match ticket.fields.status.name.as_str() {
+            "In Progress" => ticket.fields.status.name.green(),
+            "To Do" => ticket.fields.status.name.yellow(),
+            "In Review" | "Code Review" => ticket.fields.status.name.blue(),
+            "Done" => ticket.fields.status.name.bright_black(),
+            _ => ticket.fields.status.name.normal(),
+        };
+
+        println!("  {}. {} [{}]  {}",
+            (i + 1).to_string().dimmed(),
+            ticket.key.bright_white().bold(),
+            status_color,
+            ticket.fields.summary
+        );
+    }
+
+    if tickets.len() == limit as usize {
+        println!();
+        println!("{}", format!("  Showing {} of potentially more results. Use --limit to see more.", limit).dimmed());
     }
 
     Ok(())

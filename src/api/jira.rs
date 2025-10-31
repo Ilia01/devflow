@@ -125,6 +125,41 @@ impl JiraClient {
 
         Ok(tickets)
     }
+
+    pub async fn search_with_jql(&self, jql: &str, max_results: u32) -> Result<Vec<crate::models::ticket::JiraTicket>> {
+        let url = format!("{}/rest/api/3/search", self.base_url);
+
+        let body = serde_json::json!({
+            "jql": jql,
+            "fields": ["summary", "status", "assignee"],
+            "maxResults": max_results
+        });
+
+        let response = self
+            .client
+            .post(&url)
+            .basic_auth(&self.email, Some(&self.api_token))
+            .json(&body)
+            .send()
+            .await
+            .context("Failed to search tickets")?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let text = response.text().await.unwrap_or_default();
+            anyhow::bail!("Jira search API error ({}): {}", status, text);
+        }
+
+        let result: serde_json::Value = response.json().await.context("Failed to parse search response")?;
+        let issues = result["issues"].as_array().context("No issues in response")?;
+
+        let tickets: Vec<crate::models::ticket::JiraTicket> = issues
+            .iter()
+            .filter_map(|issue| serde_json::from_value(issue.clone()).ok())
+            .collect();
+
+        Ok(tickets)
+    }
 }
 
 #[cfg(test)]
@@ -290,5 +325,89 @@ mod tests {
         let result = client.search_tickets("WAB").await;
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("No issues in response"));
+    }
+
+    #[tokio::test]
+    async fn test_search_with_jql_success() {
+        let mut server = mockito::Server::new_async().await;
+
+        let mock_response = serde_json::json!({
+            "issues": [
+                {
+                    "key": "WAB-100",
+                    "fields": {
+                        "summary": "Login bug fix",
+                        "status": {
+                            "name": "To Do"
+                        }
+                    }
+                }
+            ]
+        });
+
+        let _m = server
+            .mock("POST", "/rest/api/3/search")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(mock_response.to_string())
+            .create_async()
+            .await;
+
+        let client = JiraClient::new(
+            server.url(),
+            "test@example.com".to_string(),
+            "test-token".to_string(),
+        );
+
+        let tickets = client.search_with_jql("summary ~ \"login\"", 10).await.unwrap();
+
+        assert_eq!(tickets.len(), 1);
+        assert_eq!(tickets[0].key, "WAB-100");
+        assert_eq!(tickets[0].fields.summary, "Login bug fix");
+    }
+
+    #[tokio::test]
+    async fn test_search_with_jql_respects_limit() {
+        let mut server = mockito::Server::new_async().await;
+
+        let mock_response = serde_json::json!({
+            "issues": [
+                {
+                    "key": "WAB-1",
+                    "fields": {
+                        "summary": "Test 1",
+                        "status": {
+                            "name": "To Do"
+                        }
+                    }
+                },
+                {
+                    "key": "WAB-2",
+                    "fields": {
+                        "summary": "Test 2",
+                        "status": {
+                            "name": "To Do"
+                        }
+                    }
+                }
+            ]
+        });
+
+        let _m = server
+            .mock("POST", "/rest/api/3/search")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(mock_response.to_string())
+            .create_async()
+            .await;
+
+        let client = JiraClient::new(
+            server.url(),
+            "test@example.com".to_string(),
+            "test-token".to_string(),
+        );
+
+        let tickets = client.search_with_jql("project = WAB", 5).await.unwrap();
+        assert_eq!(tickets.len(), 2);
     }
 }

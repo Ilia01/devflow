@@ -97,7 +97,18 @@ devflow open --board   # Opens Jira board
 
 Quick way to jump to tickets or pull requests without leaving the terminal.
 
-### 7. Check Current Status
+### 7. Search Jira Tickets
+
+```bash
+devflow search "login bug"                    # Search by text
+devflow search "auth" --assignee me           # My tickets matching "auth"
+devflow search "API" --status "To Do"         # By status
+devflow search "bug" --project WAB --limit 20 # Different project, more results
+```
+
+Searches ticket summaries and descriptions with optional filters.
+
+### 8. Check Current Status
 
 ```bash
 devflow status
@@ -172,6 +183,8 @@ default_transition = "In Progress"
 | `devflow start <ticket>` | Start work on a Jira ticket |
 | `devflow status` | Show current branch and git status |
 | `devflow list` | List all assigned Jira tickets |
+| `devflow search <query>` | Search Jira tickets with filters |
+| `devflow open [ticket]` | Open ticket or PR in browser |
 | `devflow commit <message>` | Commit with automatic ticket reference |
 | `devflow done` | Push, create MR, and update Jira |
 
