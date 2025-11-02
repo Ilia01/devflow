@@ -824,55 +824,74 @@ async fn handle_init() -> anyhow::Result<()> {
         },
     };
 
-    println!();
-    println!("{}", "Validating configuration...".cyan());
-    println!();
-
-    print!("{}", "  Testing Jira connection... ".dimmed());
-    let jira_client = api::jira::JiraClient::new(
-        jira_url.clone(),
-        jira_email.clone(),
-        auth_method.clone(),
-    );
-
-    match jira_client.search_with_jql(&format!("project = {}", project_key), 1).await {
-        Ok(_) => {
-            println!("{}", "✓".green().bold());
-        }
-        Err(e) => {
-            println!("{}", "✗".red().bold());
-            return Err(anyhow::anyhow!("{}",
-                errors::DevFlowError::ConfigValidationFailed(
-                    format!("Jira connection failed: {}", e)
-                )
-            ));
-        }
-    }
-
-    print!("{}", "  Checking Git token... ".dimmed());
-    if git_token.is_empty() {
-        println!("{}", "✗".red().bold());
-        return Err(anyhow::anyhow!("{}",
-            errors::DevFlowError::ConfigValidationFailed(
-                "Git token cannot be empty".to_string()
-            )
-        ));
-    }
-    println!("{}", "✓".green().bold());
-
-    println!();
-    println!("{}", "✓ All validations passed!".green().bold());
-    println!();
-
+    // Save configuration first
     settings.save()?;
-
     let config_path = Settings::config_dir()?.join("config.toml");
+
     println!();
     println!("{}", "Configuration saved!".green().bold());
     println!(
         "  Location: {}",
         config_path.display().to_string().bright_white()
     );
+    println!();
+
+    // Then validate (but don't fail if validation doesn't work)
+    println!("{}", "Validating configuration...".cyan());
+    println!();
+
+    print!("{}", "  Testing Jira connection... ".dimmed());
+    std::io::Write::flush(&mut std::io::stdout())?;
+
+    let jira_client = api::jira::JiraClient::new(
+        jira_url.clone(),
+        jira_email.clone(),
+        auth_method.clone(),
+    );
+
+    let mut validation_failed = false;
+
+    match jira_client.test_connection().await {
+        Ok(_) => {
+            println!("{}", "✓".green().bold());
+        }
+        Err(e) => {
+            println!("{}", "✗".red().bold());
+            println!();
+            println!("{}", format!("  Warning: {}", e).yellow());
+            println!();
+            println!("{}", "  This may be expected if:".dimmed());
+            println!("{}", "    - You need to connect to VPN first".dimmed());
+            println!("{}", "    - Token will be activated later".dimmed());
+            println!("{}", "    - Network restrictions apply".dimmed());
+            println!();
+            println!("{}", "  Your configuration has been saved.".green());
+            println!("{}", "  Run 'devflow config validate' when ready to test.".dimmed());
+            validation_failed = true;
+        }
+    }
+
+    if !validation_failed {
+        print!("{}", "  Checking Git token... ".dimmed());
+        std::io::Write::flush(&mut std::io::stdout())?;
+
+        if git_token.is_empty() {
+            println!("{}", "✗".red().bold());
+            println!();
+            println!("{}", "  Warning: Git token is empty".yellow());
+            validation_failed = true;
+        } else {
+            println!("{}", "✓".green().bold());
+        }
+
+        if !validation_failed {
+            println!();
+            println!("{}", "✓ All validations passed!".green().bold());
+        }
+    }
+
+    println!();
+    println!("{}", "Setup complete!".green().bold());
     println!();
     println!("{}", "Keep your API tokens secure!".yellow());
     println!("{}", "  Never commit config.toml to git".dimmed());
