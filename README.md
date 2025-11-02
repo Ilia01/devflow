@@ -314,6 +314,32 @@ ssh-add ~/.ssh/id_rsa
 - Check that your email matches your Jira account
 - Ensure you have permissions to update ticket statuses
 
+### Jira Data Center compatibility
+DevFlow works with both Jira Cloud and Jira Data Center/Server instances. The tool automatically uses the correct API version (`/rest/api/latest/`) which works with Personal Access Tokens on Data Center.
+
+If you encounter API errors:
+- For Jira Data Center/Server: Use Personal Access Token authentication
+- For Jira Cloud: Use API Token authentication
+- You can override the API version with: `JIRA_API_VERSION=2 devflow list`
+
+### Debug mode
+For troubleshooting API issues, enable debug logging with the `--verbose` flag:
+```bash
+devflow --verbose list
+```
+
+Or use the environment variable:
+```bash
+DEVFLOW_DEBUG=1 devflow list
+```
+
+This shows detailed request/response information including:
+- API URLs being called
+- Request bodies (JQL queries, etc.)
+- Response status codes
+- Raw JSON responses (first 500 chars)
+- Parsing errors with ticket data
+
 ## Security
 
 - Credentials are stored in `~/.devflow/config.toml` with 600 permissions

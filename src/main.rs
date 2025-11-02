@@ -139,6 +139,11 @@ enum ConfigAction {
 async fn main() {
     let cli = Cli::parse();
 
+    // Enable debug mode if --verbose flag is set
+    if cli.verbose {
+        std::env::set_var("DEVFLOW_DEBUG", "1");
+    }
+
     println!("{}", "DevFlow v0.1.0".bright_cyan().bold());
     println!();
 
