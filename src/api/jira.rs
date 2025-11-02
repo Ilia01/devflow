@@ -106,35 +106,7 @@ impl JiraClient {
 
     pub async fn search_tickets(&self, project_key: &str) -> Result<Vec<crate::models::ticket::JiraTicket>> {
         let jql = format!("assignee = currentUser() AND project = {}", project_key);
-        let url = format!("{}/rest/api/3/search", self.base_url);
-
-        let body = serde_json::json!({
-            "jql": jql,
-            "fields": ["summary", "status", "assignee"],
-            "maxResults": 50
-        });
-
-        let response = self.apply_auth(self.client.post(&url))
-            .json(&body)
-            .send()
-            .await
-            .context("Failed to search tickets")?;
-
-        if !response.status().is_success() {
-            let status = response.status();
-            let text = response.text().await.unwrap_or_default();
-            anyhow::bail!("Jira search API error ({}): {}", status, text);
-        }
-
-        let result: serde_json::Value = response.json().await.context("Failed to parse search response")?;
-        let issues = result["issues"].as_array().context("No issues in response")?;
-
-        let tickets: Vec<crate::models::ticket::JiraTicket> = issues
-            .iter()
-            .filter_map(|issue| serde_json::from_value(issue.clone()).ok())
-            .collect();
-
-        Ok(tickets)
+        self.search_with_jql(&jql, 50).await
     }
 
     pub async fn search_with_jql(&self, jql: &str, max_results: u32) -> Result<Vec<crate::models::ticket::JiraTicket>> {
@@ -158,13 +130,41 @@ impl JiraClient {
             anyhow::bail!("Jira search API error ({}): {}", status, text);
         }
 
-        let result: serde_json::Value = response.json().await.context("Failed to parse search response")?;
-        let issues = result["issues"].as_array().context("No issues in response")?;
+        let result: serde_json::Value = response.json().await.context("Failed to parse search response as JSON")?;
 
-        let tickets: Vec<crate::models::ticket::JiraTicket> = issues
-            .iter()
-            .filter_map(|issue| serde_json::from_value(issue.clone()).ok())
-            .collect();
+        // Debug: Print raw response if verbose mode or if parsing fails
+        if std::env::var("DEVFLOW_DEBUG").is_ok() {
+            eprintln!("DEBUG: Raw Jira response:\n{}", serde_json::to_string_pretty(&result).unwrap_or_default());
+        }
+
+        let issues = result["issues"].as_array().context("No 'issues' field in response")?;
+
+        let mut tickets: Vec<crate::models::ticket::JiraTicket> = Vec::new();
+        let mut parse_errors: Vec<String> = Vec::new();
+
+        for (idx, issue) in issues.iter().enumerate() {
+            match serde_json::from_value::<crate::models::ticket::JiraTicket>(issue.clone()) {
+                Ok(ticket) => tickets.push(ticket),
+                Err(e) => {
+                    parse_errors.push(format!("Issue {}: {}", idx, e));
+                    if std::env::var("DEVFLOW_DEBUG").is_ok() {
+                        eprintln!("DEBUG: Failed to parse issue {}:\n{}", idx, serde_json::to_string_pretty(issue).unwrap_or_default());
+                    }
+                }
+            }
+        }
+
+        // If we have parse errors and debug is on, or if ALL tickets failed to parse, report it
+        if !parse_errors.is_empty() {
+            if tickets.is_empty() {
+                anyhow::bail!(
+                    "Failed to parse any tickets from response. Errors:\n{}\n\nRun with DEVFLOW_DEBUG=1 to see raw response",
+                    parse_errors.join("\n")
+                );
+            } else if std::env::var("DEVFLOW_DEBUG").is_ok() {
+                eprintln!("WARNING: Some tickets failed to parse: {}", parse_errors.join(", "));
+            }
+        }
 
         Ok(tickets)
     }
@@ -374,7 +374,7 @@ mod tests {
 
         let result = client.search_tickets("WAB").await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("No issues in response"));
+        assert!(result.unwrap_err().to_string().contains("No 'issues' field in response"));
     }
 
     #[tokio::test]
