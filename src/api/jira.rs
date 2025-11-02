@@ -43,7 +43,8 @@ impl JiraClient {
     }
 
     pub async fn get_ticket(&self, ticket_id: &str) -> Result<JiraTicket> {
-        let url = format!("{}/rest/api/3/issue/{}", self.base_url, ticket_id);
+        let api_version = std::env::var("JIRA_API_VERSION").unwrap_or_else(|_| "latest".to_string());
+        let url = format!("{}/rest/api/{}/issue/{}", self.base_url, api_version, ticket_id);
 
         let response = self.apply_auth(self.client.get(&url))
             .send()
@@ -65,9 +66,10 @@ impl JiraClient {
     }
 
     pub async fn update_status(&self, ticket_id: &str, transition_name: &str) -> Result<()> {
+        let api_version = std::env::var("JIRA_API_VERSION").unwrap_or_else(|_| "latest".to_string());
         let transitions_url = format!(
-            "{}/rest/api/3/issue/{}/transitions",
-            self.base_url, ticket_id
+            "{}/rest/api/{}/issue/{}/transitions",
+            self.base_url, api_version, ticket_id
         );
 
         let transitions_response = self.apply_auth(self.client.get(&transitions_url))
@@ -110,7 +112,9 @@ impl JiraClient {
     }
 
     pub async fn search_with_jql(&self, jql: &str, max_results: u32) -> Result<Vec<crate::models::ticket::JiraTicket>> {
-        let url = format!("{}/rest/api/3/search", self.base_url);
+        // Allow overriding API version for Jira Data Center compatibility
+        let api_version = std::env::var("JIRA_API_VERSION").unwrap_or_else(|_| "latest".to_string());
+        let url = format!("{}/rest/api/{}/search", self.base_url, api_version);
 
         let body = serde_json::json!({
             "jql": jql,
@@ -118,19 +122,33 @@ impl JiraClient {
             "maxResults": max_results
         });
 
+        if std::env::var("DEVFLOW_DEBUG").is_ok() {
+            eprintln!("DEBUG: Request URL: {}", url);
+            eprintln!("DEBUG: Request body: {}", serde_json::to_string_pretty(&body).unwrap_or_default());
+        }
+
         let response = self.apply_auth(self.client.post(&url))
             .json(&body)
             .send()
             .await
             .context("Failed to send search request")?;
 
-        if !response.status().is_success() {
-            let status = response.status();
-            let text = response.text().await.unwrap_or_default();
-            anyhow::bail!("Jira search API error ({}): {}", status, text);
+        let status = response.status();
+        let response_text = response.text().await.unwrap_or_default();
+
+        if !status.is_success() {
+            anyhow::bail!("Jira search API error ({}): {}", status, response_text);
         }
 
-        let result: serde_json::Value = response.json().await.context("Failed to parse search response as JSON")?;
+        // Debug: Show raw response text
+        if std::env::var("DEVFLOW_DEBUG").is_ok() {
+            eprintln!("DEBUG: Response status: {}", status);
+            eprintln!("DEBUG: Raw response text (first 500 chars):\n{}", &response_text.chars().take(500).collect::<String>());
+        }
+
+        let result: serde_json::Value = serde_json::from_str(&response_text)
+            .context(format!("Failed to parse search response as JSON. Response: {}",
+                &response_text.chars().take(200).collect::<String>()))?;
 
         // Debug: Print raw response if verbose mode or if parsing fails
         if std::env::var("DEVFLOW_DEBUG").is_ok() {
@@ -171,7 +189,8 @@ impl JiraClient {
 
     /// Test connection without parsing tickets - just validates auth and API access
     pub async fn test_connection(&self) -> Result<()> {
-        let url = format!("{}/rest/api/3/myself", self.base_url);
+        let api_version = std::env::var("JIRA_API_VERSION").unwrap_or_else(|_| "latest".to_string());
+        let url = format!("{}/rest/api/{}/myself", self.base_url, api_version);
 
         let response = self.apply_auth(self.client.get(&url))
             .send()
@@ -246,7 +265,7 @@ mod tests {
         });
 
         let _m = server
-            .mock("POST", "/rest/api/3/search")
+            .mock("POST", "/rest/api/latest/search")
             .with_status(200)
             .with_header("content-type", "application/json")
             .with_body(mock_response.to_string())
@@ -280,7 +299,7 @@ mod tests {
         });
 
         let _m = server
-            .mock("POST", "/rest/api/3/search")
+            .mock("POST", "/rest/api/latest/search")
             .with_status(200)
             .with_header("content-type", "application/json")
             .with_body(mock_response.to_string())
@@ -304,7 +323,7 @@ mod tests {
         let mut server = mockito::Server::new_async().await;
 
         let _m = server
-            .mock("POST", "/rest/api/3/search")
+            .mock("POST", "/rest/api/latest/search")
             .with_status(401)
             .with_body("Unauthorized")
             .create_async()
@@ -328,7 +347,7 @@ mod tests {
         let mut server = mockito::Server::new_async().await;
 
         let _m = server
-            .mock("POST", "/rest/api/3/search")
+            .mock("POST", "/rest/api/latest/search")
             .with_status(200)
             .with_header("content-type", "application/json")
             .with_body("invalid json")
@@ -357,7 +376,7 @@ mod tests {
         });
 
         let _m = server
-            .mock("POST", "/rest/api/3/search")
+            .mock("POST", "/rest/api/latest/search")
             .with_status(200)
             .with_header("content-type", "application/json")
             .with_body(mock_response.to_string())
@@ -396,7 +415,7 @@ mod tests {
         });
 
         let _m = server
-            .mock("POST", "/rest/api/3/search")
+            .mock("POST", "/rest/api/latest/search")
             .with_status(200)
             .with_header("content-type", "application/json")
             .with_body(mock_response.to_string())
@@ -446,7 +465,7 @@ mod tests {
         });
 
         let _m = server
-            .mock("POST", "/rest/api/3/search")
+            .mock("POST", "/rest/api/latest/search")
             .with_status(200)
             .with_header("content-type", "application/json")
             .with_body(mock_response.to_string())
