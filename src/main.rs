@@ -1055,6 +1055,15 @@ async fn handle_config(action: ConfigAction) -> anyhow::Result<()> {
                         println!("{}", "  To fix:".yellow());
                         println!("{}", "    1. Generate a new token (see README for instructions)".dimmed());
                         println!("{}", "    2. Update: devflow config set jira.token <new-token>".dimmed());
+                    } else if error_str.contains("403") || error_str.contains("Forbidden") {
+                        println!("{}", "  Access forbidden (403 Forbidden)".red());
+                        println!();
+                        println!("{}", "  Your Jira instance requires VPN or network access.".yellow());
+                        println!();
+                        println!("{}", "  To fix:".yellow());
+                        println!("{}", "    1. Connect to your company VPN".dimmed());
+                        println!("{}", "    2. Ensure you're on the internal network".dimmed());
+                        println!("{}", "    3. Check if you have permission to access this Jira instance".dimmed());
                     } else if error_str.contains("404") {
                         println!("{}", "  Jira instance not found (404)".red());
                         println!();
