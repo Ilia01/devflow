@@ -1025,7 +1025,7 @@ async fn handle_config(action: ConfigAction) -> anyhow::Result<()> {
 
             let settings = Settings::load()?;
 
-            // Test Jira connection
+            // Test Jira connection with a simple API call
             print!("{}", "  Testing Jira connection... ".dimmed());
             std::io::Write::flush(&mut std::io::stdout())?;
 
@@ -1035,19 +1035,56 @@ async fn handle_config(action: ConfigAction) -> anyhow::Result<()> {
                 settings.jira.auth_method.clone(),
             );
 
-            match jira.search_with_jql(&format!("project = {}", settings.jira.project_key), 1).await {
+            // Use the /myself endpoint which is simpler and doesn't require parsing tickets
+            match jira.test_connection().await {
                 Ok(_) => {
                     println!("{}", "✓".green().bold());
                 }
                 Err(e) => {
                     println!("{}", "✗".red().bold());
                     println!();
-                    println!("{}", format!("  Jira connection failed: {}", e).red());
-                    println!();
-                    println!("{}", "  To fix:".yellow());
-                    println!("{}", "    1. Check your Jira URL is correct".dimmed());
-                    println!("{}", "    2. Verify your authentication token is valid".dimmed());
-                    println!("{}", "    3. Update with: devflow config set jira.token <new-token>".dimmed());
+
+                    let error_str = e.to_string();
+
+                    // Provide specific guidance based on error type
+                    if error_str.contains("401") || error_str.contains("Unauthorized") {
+                        println!("{}", "  Authentication failed (401 Unauthorized)".red());
+                        println!();
+                        println!("{}", "  Your Jira token is invalid or expired.".yellow());
+                        println!();
+                        println!("{}", "  To fix:".yellow());
+                        println!("{}", "    1. Generate a new token (see README for instructions)".dimmed());
+                        println!("{}", "    2. Update: devflow config set jira.token <new-token>".dimmed());
+                    } else if error_str.contains("404") {
+                        println!("{}", "  Jira instance not found (404)".red());
+                        println!();
+                        println!("{}", "  Your Jira URL may be incorrect.".yellow());
+                        println!();
+                        println!("{}", "  To fix:".yellow());
+                        println!("{}", "    1. Verify your Jira URL".dimmed());
+                        println!("{}", "    2. Update: devflow config set jira.url <correct-url>".dimmed());
+                    } else if error_str.contains("Failed to parse") {
+                        println!("{}", "  Connection succeeded but response parsing failed".red());
+                        println!();
+                        println!("{}", format!("  Error: {}", error_str).dimmed());
+                        println!();
+                        println!("{}", "  Possible causes:".yellow());
+                        println!("{}", "    1. Project key may be incorrect".dimmed());
+                        println!("{}", "    2. You may not have access to this project".dimmed());
+                        println!("{}", "    3. Jira Data Center may use different API format".dimmed());
+                        println!();
+                        println!("{}", "  To fix:".yellow());
+                        println!("{}", "    1. Verify project key: devflow config set jira.project_key <key>".dimmed());
+                        println!("{}", "    2. Test with a ticket: devflow start <TICKET-ID>".dimmed());
+                    } else {
+                        println!("{}", format!("  Jira connection failed: {}", error_str).red());
+                        println!();
+                        println!("{}", "  To fix:".yellow());
+                        println!("{}", "    1. Check your Jira URL is correct".dimmed());
+                        println!("{}", "    2. Verify your authentication token is valid".dimmed());
+                        println!("{}", "    3. Check your network connection".dimmed());
+                    }
+
                     return Err(anyhow::anyhow!("Jira validation failed"));
                 }
             }

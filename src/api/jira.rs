@@ -150,7 +150,7 @@ impl JiraClient {
             .json(&body)
             .send()
             .await
-            .context("Failed to search tickets")?;
+            .context("Failed to send search request")?;
 
         if !response.status().is_success() {
             let status = response.status();
@@ -167,6 +167,24 @@ impl JiraClient {
             .collect();
 
         Ok(tickets)
+    }
+
+    /// Test connection without parsing tickets - just validates auth and API access
+    pub async fn test_connection(&self) -> Result<()> {
+        let url = format!("{}/rest/api/3/myself", self.base_url);
+
+        let response = self.apply_auth(self.client.get(&url))
+            .send()
+            .await
+            .context("Failed to connect to Jira")?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let text = response.text().await.unwrap_or_default();
+            anyhow::bail!("Jira API error ({}): {}", status, text);
+        }
+
+        Ok(())
     }
 }
 
