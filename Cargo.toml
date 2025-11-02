@@ -1,6 +1,6 @@
 [package]
 name = "devflow"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 authors = ["Ilia Goginashvili"]
 description = "A blazing-fast CLI for automating Jira/Git workflows - stop context switching"

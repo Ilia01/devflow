@@ -1,823 +1,489 @@
-# DevFlow v1.0.0 Release Roadmap
+# DevFlow Roadmap
 
-**Vision:** Production-ready tool for teams, welcoming to external contributors
-**Timeline:** When ready (no rush, quality over speed)
-**Target Users:** Your team at Andersen + open source community
+**Current Version:** 0.2.0
+**Last Updated:** 2025-11-02
 
----
+## What is this?
 
-## Success Criteria for v1.0.0
+CLI tool to automate Jira/Git workflows. Stop switching between browser tabs and terminal.
 
-- [ ] All 4 core features implemented (list, open, search, error handling)
-- [ ] 80%+ test coverage
-- [ ] CI/CD running on every commit
-- [ ] Comprehensive README with examples
-- [ ] Contributing guide
-- [ ] 5+ people using it (team + external)
-- [ ] 100+ GitHub stars
-- [ ] Published to crates.io
-- [ ] Zero critical bugs
-- [ ] Works on macOS, Linux, Windows
+## Version Strategy
 
----
+- **v0.2.0** (now): Complete all planned features, get team using it
+- **v0.3.0** (2-3 weeks): Fix what breaks in real usage
+- **v0.5.0** (2-3 months): Production-ready, add CI/CD and binaries
+- **v0.9.0** (4-6 months): Public beta, polish UX
+- **v1.0.0** (6+ months): Official launch
 
-## Phase 1: Core Features (3-4 weeks)
+**Why not rush to 1.0?** Better to get it right than ship it fast. Bad first impression is hard to fix.
 
-### Feature 1.1: `devflow list` - List Assigned Tickets
-**Branch:** `feature/list-tickets` ✅ MERGED (premature)
-**Effort:** 1-2 days
-**Priority:** HIGH (Quick win, immediately useful)
-
-**Tasks:**
-- [x] Add Jira API method to fetch assigned tickets (`GET /search`)
-- [x] Parse and display tickets with colors
-- [ ] Add filtering by status, project
-- [x] Pretty terminal output (table format)
-- [ ] Add `--json` flag for scripting
-- [x] Unit tests for list logic
-- [x] Integration test with mocked Jira API
-
-**Usage:**
-```bash
-devflow list                    # All assigned tickets
-devflow list --status "To Do"   # Filter by status
-devflow list --project WAB      # Filter by project
-devflow list --json             # JSON output for scripts
-```
-
-**Expected Output:**
-```
-Your Assigned Tickets (3):
-
-  WAB-1234  [In Progress]  Add user authentication
-            Branch: feat/WAB-1234/add_user_authentication
-
-  WAB-1235  [To Do]        Fix login bug
-
-  WAB-1236  [In Review]    Update API documentation
-            PR: https://github.com/...
-```
-
-**Technical Details:**
-- Use Jira JQL: `assignee = currentUser() AND project = WAB`
-- Color coding: Green=In Progress, Yellow=To Do, Blue=In Review
-- Cache results for 5 minutes to reduce API calls
+**Why no binaries yet?** Team has Rust, `cargo install` is fine. Will add binaries at v0.5 when going public.
 
 ---
 
-### Feature 1.2: `devflow open` - Open in Browser
-**Branch:** `feature/open-browser` ✅ MERGED (premature)
-**Effort:** 1 day
-**Priority:** HIGH (Quick win, very convenient)
+## v0.2.0 - Complete Phase 1
 
-**Tasks:**
-- [x] Detect current ticket from branch name
-- [x] Build Jira ticket URL
-- [x] Build GitHub/GitLab PR/MR URL
-- [x] Cross-platform browser opening (macOS/Linux/Windows)
-- [x] Add `--pr` flag to open PR instead of ticket
-- [x] Add `--board` flag to open Jira board
-- [x] Tests for URL generation logic
+**Status:** 90% done
+**Timeline:** ~1 week
 
-**Usage:**
-```bash
-devflow open           # Opens current ticket in Jira
-devflow open WAB-1234  # Opens specific ticket
-devflow open --pr      # Opens PR/MR for current branch
-devflow open --board   # Opens Jira board
-```
+### Done ✅
 
-**Technical Details:**
-- Use `open` crate for cross-platform browser opening
-- Extract ticket ID from current branch name
-- For PR: Search for PR by branch name via API
-- Fallback to project board if no ticket found
+**Core commands:**
+- `devflow init` - Configure Jira, Git, credentials
+- `devflow start <ticket>` - Fetch ticket, create branch, update status
+- `devflow commit <msg>` - Commit with ticket reference
+- `devflow done` - Push, create PR/MR, update Jira
+- `devflow status` - Show current ticket/branch
 
----
+**Discovery:**
+- `devflow list` - List assigned tickets
+- `devflow search <query>` - Search tickets with filters
+- `devflow open [ticket]` - Open ticket/PR in browser
 
-### Feature 1.3: `devflow search` - Search Tickets
-**Branch:** `feature/search-tickets` ✅ MERGED (premature)
-**Effort:** 2-3 days
-**Priority:** MEDIUM (Complex but powerful)
+**Config:**
+- `devflow config show` - View config (masked secrets)
+- `devflow config set <key> <value>` - Update values
+- `devflow config validate` - Test API connections
+- `devflow config path` - Show config file location
 
-**Tasks:**
-- [x] Jira JQL search integration
-- [x] Search by summary and description
-- [x] Add filters (assignee, status, project)
-- [x] Display results with colors and pagination
-- [ ] Interactive selection (pick ticket to start work)
-- [x] Tests for search query building
-- [x] Handle no results gracefully
+**Enterprise support:**
+- PAT auth (Jira Data Center/Server)
+- API Token auth (Jira Cloud)
+- GitHub + GitLab support
+- Jira Data Center compatibility (`/rest/api/latest/`)
 
-**Usage:**
-```bash
-devflow search "login bug"           # Search by text
-devflow search --assignee me         # My tickets
-devflow search --status "To Do"      # By status
-devflow search "API" --project WAB   # Project specific
-devflow search "auth" --interactive  # Pick ticket to start
-```
+**Quality:**
+- 46 tests passing
+- Custom error types with helpful messages
+- Debug mode (`DEVFLOW_DEBUG=1`)
+- Secure config (600 permissions)
 
-**Expected Output:**
-```
-Search Results (5 found):
+### TODO 🚧
 
-  1. WAB-1234  [In Progress]  Add user authentication
-  2. WAB-1235  [To Do]        Fix login bug
-  3. WAB-1236  [In Review]    Update API docs
-  4. WAB-1237  [To Do]        Login page redesign
-  5. WAB-1238  [Blocked]      Auth service migration
+**Features:**
+- [ ] `devflow list --status "In Progress"` - Filter by status
+- [ ] `devflow list --project WAB` - Switch projects
+- [ ] `devflow list --json` - JSON output for scripting
+- [ ] `devflow search --interactive` - Select ticket → auto start work
+- [ ] Create `CHANGELOG.md`
 
-Showing 5 of 12 results. Use --limit to see more.
-```
+**Quality:**
+- [ ] Integration test for full workflow (init → start → commit → done)
+- [ ] Test error scenarios (network failures, invalid tokens)
+- [ ] Better inline help text
 
-**Technical Details:**
-- Build JQL from search parameters
-- Use Jira search API: `GET /rest/api/3/search`
-- Default limit: 10 results
-- Interactive mode: use `dialoguer` crate for selection
+**Docs:**
+- [ ] Update README with all features
+- [ ] Add examples for flags
+
+### Release Checklist
+
+- [ ] All 4 features implemented and tested
+- [ ] CHANGELOG.md created
+- [ ] All tests passing
+- [ ] README updated
+- [ ] Merge to main, tag v0.2.0
+- [ ] Install on 3-5 teammates' machines
+- [ ] Gather feedback
+
+**Install:** `cargo install --path .`
 
 ---
 
-### Feature 1.4: Better Error Handling & Validation
-**Branch:** `feature/error-handling` ✅ MERGED (premature)
-**Effort:** 2-3 days
-**Priority:** HIGH (Essential for team adoption)
+## v0.3.0 - Fix What Breaks
 
-**Tasks:**
-- [x] Create custom error types (JiraError, GitError, ConfigError)
-- [ ] Validate config during `init` (test API tokens work)
-- [x] Check prerequisites before commands (git repo, clean tree)
-- [x] User-friendly error messages with suggestions
-- [x] Add `--verbose` flag for debugging
-- [x] Recovery suggestions in error messages
-- [ ] Tests for all error scenarios
+**Status:** Not started
+**Timeline:** 2-3 weeks after v0.2
+**Goal:** Fix everything that annoys teammates in daily use
 
-**Error Message Examples:**
-```
-❌ Error: Not in a git repository
-   Run devflow from inside a git project
+### Likely Issues
 
-❌ Error: Jira API authentication failed (401)
-   Your API token may have expired.
+**Performance:**
+- [ ] Slow API calls → Add spinners/progress bars
+- [ ] Repeated API calls → Cache Jira responses (5-min TTL)
+- [ ] Large ticket lists → Pagination
 
-   To fix:
-   1. Generate new token: https://id.atlassian.com/manage-profile/security/api-tokens
-   2. Update config: devflow config edit
-   3. Or reinitialize: devflow init
+**Edge cases:**
+- [ ] Weird ticket formats (special chars, emoji)
+- [ ] Network timeouts → Retry logic
+- [ ] Very long summaries → Truncate branch names
 
-❌ Error: Branch 'feat/WAB-1234/...' already exists
-   You're already on this branch.
+**UX:**
+- [ ] Better error messages (from real usage)
+- [ ] Clearer success/failure feedback
 
-   Run: devflow status
+**Workflow gaps** (based on team requests):
+- [ ] `devflow sync` - Update branch with main/master
+- [ ] `devflow abort` - Cancel work, delete branch, return to main
+- [ ] `devflow config doctor` - Diagnose setup issues
+- [ ] `devflow switch <ticket>` - Switch to different ticket
 
-❌ Error: Uncommitted changes detected
-   Commit or stash your changes before running 'devflow done'
+### Quality
 
-   Run: git status
-```
+- [ ] Test new features
+- [ ] Test edge cases found in production
+- [ ] Maintain 50%+ coverage
+- [ ] Write errors to `~/.devflow/devflow.log`
+- [ ] Add `--verbose` for all commands
 
-**Technical Details:**
-- Custom error enum with context
-- Use `anyhow::Context` for error chains
-- Color-coded errors (red) with green suggestions
-- Validate API tokens during init (make test call)
-- Check `git status --porcelain` before `done`
+### Success Criteria
 
----
+- [ ] Zero critical bugs from team
+- [ ] All teammates using it daily
+- [ ] Saves 5+ minutes per ticket workflow
+- [ ] All major pain points addressed
 
-### Feature 1.5: PAT Authentication Support
-**Branch:** `feature/pat-authentication` ✅ COMPLETED
-**Effort:** 1 day
-**Priority:** HIGH (Enterprise Jira support)
-
-**Tasks:**
-- [x] Add `AuthMethod` enum to support both PAT and API Token
-- [x] Update `JiraClient` to handle Bearer token authentication
-- [x] Update `devflow init` to prompt for auth method selection
-- [x] Update all JiraClient call sites to use new auth
-- [x] Add tests for both authentication methods
-- [x] Update README with PAT documentation
-- [x] Update ROADMAP with PAT implementation details
-
-**Why This Matters:**
-Enterprise Jira instances (Data Center/Server) don't support Cloud API tokens. Personal Access Tokens (PAT) with Bearer authentication are required for these environments.
-
-**Technical Details:**
-- PAT uses `Authorization: Bearer <token>` header
-- API Token uses `Authorization: Basic email:token` (existing)
-- `AuthMethod` enum supports both: `PersonalAccessToken` and `ApiToken`
-- Init prompts user to select authentication method (defaults to API Token for Cloud)
-
-**Config Format:**
-```toml
-[jira.auth_method]
-type = "personal_access_token"
-token = "your-pat-token"
-```
+**Install:** Still `cargo install --path .`
 
 ---
 
-### Feature 1.6: Complete Remaining Phase 1 Tasks
-**Branch:** `feature/phase1-completion`
-**Effort:** 2-3 days
-**Priority:** HIGH (Finish what we started)
+## v0.5.0 - Production Ready
 
-**Tasks:**
-- [ ] Add `--status` and `--project` flags to `devflow list`
-- [ ] Add `--json` flag to `devflow list` for scripting
-- [ ] Add `--interactive` flag to `devflow search` (pick ticket to start)
-- [ ] Validate config during `devflow init` (test API tokens actually work)
-- [ ] Add comprehensive error scenario tests
-- [ ] Update README with all completed features
+**Status:** Not started
+**Timeline:** 1-2 months after v0.3
+**Goal:** Zero bugs, ready for public, professional distribution
 
-**Why This Matters:**
-We prematurely merged features before completing all tasks. This section addresses the technical debt created.
+### Quality
 
----
+**Testing:**
+- [ ] 70%+ test coverage
+- [ ] Integration tests with real APIs (opt-in via env var)
+- [ ] Cross-platform testing (macOS, Linux)
+- [ ] Performance benchmarks (all commands < 2s)
+- [ ] Security audit of credential storage
 
-## Phase 2: Quality & Polish (2-3 weeks)
-
-### Quality 2.1: Comprehensive Testing
-**Effort:** 1 week
-**Priority:** HIGH
-
-**Tasks:**
-- [ ] Unit tests for all commands (target 80% coverage)
-- [ ] Integration tests with mocked HTTP responses
-- [ ] Test edge cases (no tickets, API errors, network issues)
-- [ ] Test all error scenarios
-- [ ] Add `cargo test --all-features`
-- [ ] Set up code coverage reporting
-- [ ] Document how to run tests in CONTRIBUTING.md
-
-**Testing Strategy:**
-
-**Unit Tests (per feature):**
-- Command argument parsing
-- Branch name generation
-- Ticket ID extraction
-- URL building
-- Error handling logic
-
-**Integration Tests:**
-- Mock Jira API responses with `mockito`
-- Mock GitHub/GitLab API responses
-- Test full workflows (start → commit → done)
-- Test error recovery
-
-**Manual Test Scenarios (before release):**
-1. Fresh install on clean machine
-2. Run through all commands
-3. Test error cases
-4. Test with both GitHub and GitLab
-5. Cross-platform testing (Mac, Linux, Windows)
-
----
-
-### Quality 2.2: CI/CD Pipeline
-**Branch:** `feature/ci-cd`
-**Effort:** 2-3 days
-**Priority:** MEDIUM
-
-**Tasks:**
-- [ ] Create GitHub Actions workflow
-- [ ] Run tests on every PR
+**CI/CD:**
+- [ ] GitHub Actions - run tests on every PR
 - [ ] Lint with `cargo clippy`
 - [ ] Format check with `cargo fmt`
-- [ ] Build for multiple platforms (Linux, macOS, Windows)
-- [ ] Auto-release on version tags
-- [ ] Upload binaries to GitHub releases
-- [ ] Add status badges to README
-
-**CI/CD Workflow:**
-
-**.github/workflows/ci.yml:**
-```yaml
-name: CI
-on: [push, pull_request]
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions-rs/toolchain@v1
-      - run: cargo test --all-features
-      - run: cargo clippy -- -D warnings
-      - run: cargo fmt -- --check
-
-  build:
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v3
-      - run: cargo build --release
-```
-
-**.github/workflows/release.yml:**
-```yaml
-name: Release
-on:
-  push:
-    tags: ['v*']
-
-jobs:
-  release:
-    # Build binaries for all platforms
-    # Create GitHub release
-    # Upload artifacts
-```
-
----
-
-### Quality 2.3: Configuration Improvements
-**Branch:** `feature/config-improvements`
-**Effort:** 2 days
-**Priority:** MEDIUM
-
-**Tasks:**
-- [ ] Add `devflow config show` - display current config
-- [ ] Add `devflow config edit` - open config in $EDITOR
-- [ ] Add `devflow config validate` - test API connectivity
-- [ ] Support for multiple profiles (work, personal)
-- [ ] Add `devflow config switch <profile>`
-- [ ] Tests for config commands
-
-**Usage:**
-```bash
-devflow config show              # Display masked config
-devflow config edit              # Open in editor
-devflow config validate          # Test all API tokens
-devflow config profiles          # List available profiles
-devflow config switch personal   # Switch to personal profile
-```
-
-**Config Profile Support:**
-```toml
-# ~/.devflow/config.toml
-[profiles.work]
-jira.url = "https://jira.company.com"
-git.provider = "gitlab"
-
-[profiles.personal]
-jira.url = "https://myproject.atlassian.net"
-git.provider = "github"
-git.owner = "Ilia01"
-git.repo = "my-project"
-
-[default]
-active_profile = "work"
-```
-
----
-
-## Phase 3: Documentation & UX (1-2 weeks)
-
-### Docs 3.1: Comprehensive README
-**Priority:** HIGH
-
-**Tasks:**
-- [ ] Clear project description
-- [ ] GIF/screenshot of tool in action
-- [ ] Installation guide (cargo, homebrew, binaries)
-- [ ] Quick start tutorial (5 min to first commit)
-- [ ] Full command reference with examples
-- [ ] Configuration guide
-- [ ] Troubleshooting section
-- [ ] FAQ
-- [ ] Badges (CI status, crates.io, license)
-
-**README Structure:**
-```markdown
-# DevFlow
-
-[Logo/GIF here]
-
-## Features
-- Bullet points with screenshots
-
-## Installation
-### From crates.io
-### From Homebrew
-### From Binary
-
-## Quick Start
-Step-by-step tutorial
-
-## Commands
-Full reference
-
-## Configuration
-How to configure
-
-## Troubleshooting
-Common issues
-
-## Contributing
-Link to guide
-
-## License
-```
-
----
-
-### Docs 3.2: Contributing Guide
-**File:** `CONTRIBUTING.md`
-**Priority:** MEDIUM
-
-**Tasks:**
-- [ ] Development environment setup
-- [ ] How to run tests
-- [ ] Code style guidelines (rustfmt, clippy)
-- [ ] How to submit PRs
-- [ ] Architecture overview
-- [ ] Where to add new features
-- [ ] How to write tests
-
-**Sections:**
-1. Getting Started (clone, build, test)
-2. Development Workflow
-3. Code Style
-4. Testing Guidelines
-5. Submitting Changes
-6. Architecture Overview
-7. FAQ for Contributors
-
----
-
-### Docs 3.3: GitHub Templates & Policies
-**Priority:** MEDIUM
-
-**Files to Create:**
-- [ ] `.github/ISSUE_TEMPLATE/bug_report.md`
-- [ ] `.github/ISSUE_TEMPLATE/feature_request.md`
-- [ ] `.github/pull_request_template.md`
-- [ ] `CODE_OF_CONDUCT.md`
-- [ ] `SECURITY.md`
-
----
-
-### UX 3.1: Better CLI Experience
-**Priority:** MEDIUM
-
-**Tasks:**
-- [ ] Add progress indicators for API calls
-- [ ] Colored output (success=green, error=red, info=cyan)
-- [ ] Spinner for long operations
-- [ ] Better `--help` for every command
-- [ ] Add `--verbose` flag for debugging
-- [ ] Add `--json` flag for all commands (scripting)
-- [ ] Add `--quiet` flag for CI/CD usage
-
-**Dependencies to Add:**
-```toml
-console = "0.15"      # Terminal colors
-indicatif = "0.17"    # Progress bars/spinners
-dialoguer = "0.11"    # Interactive prompts
-```
-
-**Example Improvements:**
-```
-Before:
-Fetching ticket...
-
-After:
-⠋ Fetching ticket WAB-1234... ✓
-⠋ Creating branch...          ✓
-⠋ Updating Jira status...     ✓
-
-✨ All set! You're ready to code!
-```
-
----
-
-## Phase 4: Release Prep (1 week)
-
-### Release 4.1: Version Management
-**Priority:** HIGH
-
-**Tasks:**
-- [ ] Update version in Cargo.toml to 1.0.0
-- [ ] Create CHANGELOG.md following Keep a Changelog format
-- [ ] Write release notes
-- [ ] Tag version: `git tag -a v1.0.0 -m "Release v1.0.0"`
-- [ ] Create GitHub release with binaries
-
-**CHANGELOG.md Format:**
-```markdown
-# Changelog
-
-## [1.0.0] - 2025-XX-XX
-
-### Added
-- `devflow list` - List assigned Jira tickets
-- `devflow open` - Open tickets/PRs in browser
-- `devflow search` - Search Jira tickets
-- Better error handling with helpful suggestions
-- GitHub support alongside GitLab
-- Comprehensive test suite
-- CI/CD pipeline
-
-### Changed
-- Improved error messages
-- Better terminal colors
-
-### Fixed
-- Branch naming edge cases
-
-## [0.1.0] - 2025-10-31
-- Initial release
-```
-
----
-
-### Release 4.2: Distribution
-**Priority:** HIGH
-
-**Tasks:**
-- [ ] Publish to crates.io: `cargo publish`
-- [ ] Create Homebrew formula
-- [ ] Build release binaries (Linux x64, macOS Intel/ARM, Windows)
-- [ ] Upload binaries to GitHub releases
-- [ ] Create Docker image (optional)
-- [ ] Update README with all install methods
-
-**Homebrew Formula:**
-```ruby
-class Devflow < Formula
-  desc "CLI tool for automating Jira/Git workflows"
-  homepage "https://github.com/Ilia01/devflow"
-  url "https://github.com/Ilia01/devflow/archive/v1.0.0.tar.gz"
-  sha256 "..."
-
-  depends_on "rust" => :build
-
-  def install
-    system "cargo", "install", *std_cargo_args
-  end
-
-  test do
-    assert_match "devflow", shell_output("#{bin}/devflow --version")
-  end
-end
-```
-
----
-
-### Release 4.3: Marketing & Launch
-**Priority:** MEDIUM
-
-**Tasks:**
-- [ ] Write blog post: "Building DevFlow: A Jira/Git Workflow Automation Tool in Rust"
-- [ ] LinkedIn announcement post
-- [ ] Post to r/rust (Show off project)
-- [ ] Post to r/devops
-- [ ] Post to r/programming
-- [ ] Tweet thread about the journey
-- [ ] Post on Dev.to
-- [ ] Product Hunt launch (optional)
-- [ ] Share in Rust Discord/Slack communities
-
-**LinkedIn Post Template:**
-```
-🚀 DevFlow v1.0.0 is here!
-
-After 3 months of building, testing, and polishing, I'm excited to release DevFlow - a CLI tool that automates Jira/Git workflows.
-
-What it does:
-✅ Manage Jira tickets from terminal
-✅ Auto-create branches with smart naming
-✅ Create PRs/MRs with one command
-✅ Works with GitHub and GitLab
-
-Built in Rust 🦀 with:
-• 80%+ test coverage
-• CI/CD pipeline
-• Cross-platform support
-• 100% open source
-
-From idea to v1.0.0, here's what I learned:
-[Thread with insights]
-
-Try it: cargo install devflow
-Repo: https://github.com/Ilia01/devflow
-
-#Rust #OpenSource #DevTools #CLI
-```
-
----
-
-## Implementation Timeline (Recommended)
-
-### Week 1-2: Core Features (Part 1)
-- [ ] Merge GitHub support to main
-- [ ] Build `devflow list`
-- [ ] Build `devflow open`
-- [ ] Manual testing of both features
-
-### Week 3-4: Core Features (Part 2)
-- [ ] Better error handling across all commands
-- [ ] Build `devflow search`
-- [ ] Manual testing
-
-### Week 5-6: Quality
-- [ ] Write unit tests for all features
-- [ ] Write integration tests
-- [ ] Achieve 80% code coverage
-- [ ] Fix any bugs found during testing
-
-### Week 7-8: CI/CD & Config
-- [ ] Set up GitHub Actions
-- [ ] Implement config improvements
-- [ ] Cross-platform testing
-
-### Week 9-10: Documentation & UX
-- [ ] Rewrite README
-- [ ] Write CONTRIBUTING.md
-- [ ] Add progress indicators and colors
-- [ ] Create issue/PR templates
-
-### Week 11-12: Release
-- [ ] Final testing on all platforms
-- [ ] Create CHANGELOG
-- [ ] Build release binaries
+- [ ] Test on macOS + Linux
+- [ ] Auto-build binaries on tag push
+- [ ] Auto-create GitHub release
+
+**Error handling:**
+- [ ] Every error has recovery suggestion
+- [ ] Network errors retry 3x with backoff
+- [ ] Config validation before API calls
+
+### Distribution (NOW add binaries)
+
+- [ ] macOS (Intel + ARM)
+- [ ] Linux x64
+- [ ] Windows (if demand)
+- [ ] Auto-build via GitHub Actions
+- [ ] Upload to GitHub Releases
 - [ ] Publish to crates.io
-- [ ] Launch marketing campaign
 
----
+### Documentation
 
-## Project Structure (v1.0.0)
+**User docs:**
+- [ ] Comprehensive README
+- [ ] Troubleshooting guide
+- [ ] FAQ
+- [ ] Video tutorial (5 min)
 
-```
-devflow/
-├── .github/
-│   ├── workflows/
-│   │   ├── ci.yml                  # CI/CD pipeline
-│   │   └── release.yml             # Auto-release
-│   ├── ISSUE_TEMPLATE/
-│   │   ├── bug_report.md
-│   │   └── feature_request.md
-│   └── pull_request_template.md
-├── docs/
-│   ├── architecture.md             # System design
-│   ├── commands.md                 # Full command reference
-│   └── development.md              # Dev guide
-├── src/
-│   ├── main.rs                     # Entry point
-│   ├── commands/                   # Command implementations
-│   │   ├── mod.rs
-│   │   ├── init.rs
-│   │   ├── start.rs
-│   │   ├── status.rs
-│   │   ├── commit.rs
-│   │   ├── done.rs
-│   │   ├── list.rs                 # NEW
-│   │   ├── search.rs               # NEW
-│   │   ├── open.rs                 # NEW
-│   │   └── config.rs               # NEW
-│   ├── api/
-│   │   ├── mod.rs
-│   │   ├── jira.rs                 # Enhanced with search
-│   │   ├── github.rs
-│   │   ├── gitlab.rs
-│   │   └── git.rs
-│   ├── config/
-│   │   ├── mod.rs
-│   │   └── settings.rs             # Enhanced with profiles
-│   ├── models/
-│   │   ├── mod.rs
-│   │   └── ticket.rs
-│   ├── errors.rs                   # NEW - Custom errors
-│   └── utils/
-│       ├── mod.rs
-│       ├── browser.rs              # NEW - Open URLs
-│       ├── terminal.rs             # NEW - Colors, spinners
-│       └── validation.rs           # NEW - Input validation
-├── tests/
-│   ├── integration/
-│   │   ├── mod.rs
-│   │   ├── jira_tests.rs
-│   │   ├── workflow_tests.rs
-│   │   └── error_tests.rs
-│   └── fixtures/
-│       └── mock_responses.json
-├── Cargo.toml
-├── ROADMAP_V1.md                   # This file
-├── README.md
-├── CONTRIBUTING.md
-├── CHANGELOG.md
-├── CODE_OF_CONDUCT.md
-├── SECURITY.md
-└── LICENSE
+**Developer docs:**
+- [ ] `CONTRIBUTING.md`
+- [ ] `ARCHITECTURE.md`
+- [ ] Code comments for complex logic
+
+**Templates:**
+- [ ] Issue template (bug)
+- [ ] Issue template (feature)
+- [ ] PR template
+- [ ] `CODE_OF_CONDUCT.md`
+
+### Success Criteria
+
+- [ ] Zero known critical bugs
+- [ ] Tests pass on macOS, Linux
+- [ ] 10+ people using it
+- [ ] Docs cover all features
+- [ ] Clean install works for non-Rust devs
+- [ ] CI/CD prevents regressions
+
+**Install:**
+```bash
+cargo install devflow
+# OR
+curl -L https://github.com/Ilia01/devflow/releases/download/v0.5.0/devflow-macos -o devflow
+chmod +x devflow && sudo mv devflow /usr/local/bin/
 ```
 
 ---
 
-## Dependencies to Add
+## v0.9.0 - Public Beta
 
-```toml
-[dependencies]
-# Existing
-clap = { version = "4.5", features = ["derive"] }
-tokio = { version = "1.41", features = ["full"] }
-reqwest = { version = "0.12", features = ["json"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-toml = "0.8"
-anyhow = "1.0"
-colored = "2.0"
-config = "0.14"
-git2 = "0.20"
-urlencoding = "2.1"
+**Status:** Not started
+**Timeline:** 2-3 months after v0.5
+**Goal:** Polish for 1.0, gather community feedback
 
-# NEW for v1.0.0
-open = "5.0"              # Open URLs in browser
-console = "0.15"          # Terminal utilities
-indicatif = "0.17"        # Progress bars
-dialoguer = "0.11"        # Interactive prompts
+### UX
 
-[dev-dependencies]
-mockito = "1.2"           # HTTP mocking for tests
-```
+**Terminal:**
+- [ ] Beautiful output (colors, tables)
+- [ ] Progress bars (indicatif)
+- [ ] Spinner animations
+- [ ] Success/error symbols (✓, ✗, ⚠)
+
+**Dev experience:**
+- [ ] Shell autocomplete (bash, zsh, fish)
+- [ ] Man pages
+- [ ] Better `devflow help`
+- [ ] Sensible defaults
+
+### Advanced Features
+
+**Config:**
+- [ ] Multiple profiles (`devflow config switch work/personal`)
+- [ ] Import/export config
+- [ ] Template configs
+
+**Power user:**
+- [ ] Plugin system (`~/.devflow/plugins/`)
+- [ ] Aliases
+- [ ] Hooks (pre-commit, post-done)
+- [ ] Custom JQL searches
+
+**Optional:**
+- [ ] `devflow tui` - Interactive dashboard
+- [ ] Keyboard navigation
+- [ ] Launch actions from menu
+
+### Community
+
+**Beta:**
+- [ ] Recruit 20-30 beta testers
+- [ ] Private Discord for feedback
+- [ ] Weekly feedback sessions
+- [ ] Feature voting
+
+**Open source:**
+- [ ] "Good first issue" labels
+- [ ] Respond to issues < 48h
+- [ ] Review PRs < 1 week
+- [ ] Recognize contributors in CHANGELOG
+
+**Content:**
+- [ ] Blog: "Building DevFlow in Rust"
+- [ ] Technical deep-dives
+- [ ] Video tutorials
+- [ ] Share on Twitter/LinkedIn
+
+### Distribution
+
+- [ ] Homebrew: `brew install devflow`
+- [ ] Linux packages (apt, yum)
+- [ ] Windows (Chocolatey if demand)
+- [ ] Docker image
+
+### Success Criteria
+
+- [ ] 50+ active users
+- [ ] 20+ beta testers
+- [ ] All major features done
+- [ ] Zero critical bugs for 2+ weeks
+- [ ] Ready for launch
 
 ---
 
-## Milestones
+## v1.0.0 - Launch
 
-### M1: Feature Complete (Week 4-5)
-- [x] GitHub support
-- [ ] All 4 new features working (list, open, search, errors)
-- [ ] Basic manual testing done
+**Status:** Not started
+**Timeline:** When ready
+**Goal:** Production tool that people actually want to use
 
-### M2: Quality Complete (Week 7-8)
-- [ ] 80% test coverage
-- [ ] CI/CD working
-- [ ] Error handling polished
-- [ ] All tests passing
+### Checklist
 
-### M3: Docs Complete (Week 9-10)
-- [ ] README comprehensive
-- [ ] Contributing guide done
-- [ ] Architecture docs written
-- [ ] All templates created
+**Quality:**
+- [ ] All v0.9 criteria met
+- [ ] 80%+ test coverage
+- [ ] Zero critical bugs
+- [ ] Security review done
+- [ ] Performance validated (handles 1000+ tickets)
+- [ ] Works on macOS, Linux, Windows
 
-### M4: v1.0.0 Release (Week 11-12)
-- [ ] Published to crates.io
-- [ ] Binaries available for all platforms
-- [ ] Launch posts published
+**Docs:**
+- [ ] Perfect README
+- [ ] Comprehensive troubleshooting
+- [ ] Video tutorials
+- [ ] Migration guide
+
+**Community:**
+- [ ] 30+ beta users (2+ weeks)
+- [ ] 3+ external contributors
+- [ ] Issue templates working
+- [ ] Fast response time (< 48h)
+
+### Marketing
+
+**Content:**
+- [ ] Launch blog post
+- [ ] Technical series
+- [ ] Demo video (3-5 min)
+- [ ] Case studies
+
+**Platforms:**
+- [ ] Product Hunt
+- [ ] Reddit (r/rust, r/devops, r/programming)
+- [ ] Hacker News
+- [ ] Dev.to
+- [ ] LinkedIn
+- [ ] Twitter
+
+**Distribution:**
+- [ ] crates.io
+- [ ] Homebrew tap
+- [ ] All platforms
+- [ ] Listed in awesome-rust, awesome-cli-apps
+
+### Post-Launch
+
+**First month:**
+- [ ] Fix critical bugs immediately
+- [ ] Respond to all issues < 24h
+- [ ] Ship v1.0.1, v1.0.2 with fixes
+
+**Success metrics:**
+- [ ] 1000+ downloads
 - [ ] 100+ GitHub stars
-- [ ] 5+ active users
+- [ ] 5+ teams using in production
+- [ ] Featured in newsletters
 
 ---
 
-## Post-v1.0.0 Ideas (v1.1.0+)
+## What to Do NOW
 
-**Features for Future Versions:**
-- `devflow pr comment` - Add comments to PRs
-- `devflow worklog` - Track time on tickets
-- `devflow sprint` - Sprint planning/reporting
-- `devflow link` - Link current branch to different ticket
-- `devflow sync` - Sync branch with main
-- Plugin system for custom commands
-- TUI mode (interactive dashboard)
-- Multiple project support
-- Bitbucket support
-- Azure DevOps support
+### Next 2 weeks (v0.2)
 
-**Infrastructure Improvements:**
-- Homebrew tap for easier installation
-- Package for apt/yum
-- Snapcraft package
-- Publish to Chocolatey (Windows)
-- Shell completion scripts
-- Man pages
-- Telemetry (opt-in, privacy-first)
+1. Finish 4 remaining features
+2. Get 3-5 teammates using it
+3. Watch what breaks
+4. Fix top 3 pain points
+
+Real usage > everything else.
+
+**Don't:**
+- Add features nobody asked for
+- Optimize for problems that don't exist
+- Build binaries yet
+
+### Weeks 3-6 (v0.3)
+
+1. Fix everything teammates complained about
+2. Add progress spinners if APIs feel slow
+3. Cache Jira responses
+4. Handle edge cases
+5. Add the ONE feature people keep asking for
+
+Reliability > new features.
+
+### Months 2-3 (v0.5)
+
+1. Get test coverage to 70%+
+2. Set up CI/CD
+3. NOW build binaries
+4. Write contributor docs
+5. Publish to crates.io
+
+Don't rush to 1.0.
+
+### Months 4-6 (v0.9)
+
+1. Get 20-30 beta testers
+2. Polish terminal output
+3. Add advanced features
+4. Write tutorials
+5. Make contributing easy
+
+Don't add every feature request.
+
+### Month 6+ (v1.0)
+
+Ship when people need it, not just when it works.
+
+Focus: "Saves 30 min/day"
+
+Best marketing: users telling friends.
+
+---
+
+## Feature Backlog (Post-v1.0)
+
+Don't build these yet. Add when there's actual demand.
+
+**Workflow:**
+- `devflow worklog` - Track time
+- `devflow sprint` - Sprint planning
+- `devflow link <ticket>` - Link branch to different ticket
+- `devflow pr review` - PR review workflow
+- `devflow rebase` - Smart rebase
+
+**Integrations:**
+- Bitbucket
+- Azure DevOps
+- Slack notifications
+- Webhooks
+
+**Advanced:**
+- Team analytics
+- Custom workflows (YAML)
+- API for integrations
+- VS Code extension
+
+**QoL:**
+- Command aliases
+- Commit templates
+- Activity history
+- Undo operations
+- Auto-update notifications
+
+---
+
+## Recent Completions
+
+### Config Management & Jira Data Center (2025-11-02)
+
+**Built:**
+1. Config management:
+   - `devflow config show/set/validate/path`
+   - Config saves even if validation fails
+   - Helpful error messages for VPN/network issues
+
+2. Jira Data Center compatibility:
+   - Fixed auth for Data Center search endpoint
+   - Changed default: `/rest/api/3/` → `/rest/api/latest/`
+   - Added `JIRA_API_VERSION` env var override
+   - Added `DEVFLOW_DEBUG=1` for logging
+
+**Why it mattered:**
+- Users lost config when init validation failed (VPN)
+- Data Center `/rest/api/3/search` needs sessions
+- `/rest/api/latest/` accepts PAT auth
+- Debug mode critical for diagnosing issues
+
+**Files changed:**
+- `src/main.rs` - Config commands
+- `src/api/jira.rs` - API version, debug logging
+- `README.md` - Troubleshooting
+- Tests updated to `/rest/api/latest/`
 
 ---
 
 ## Notes
 
-**Key Principles:**
-1. **Quality over speed** - Take time to do it right
-2. **Test everything** - No feature without tests
-3. **Document as you go** - Don't leave docs for the end
-4. **Ship incrementally** - Each feature is a win
-5. **Get feedback early** - Share with team after each feature
-
-**When to Ship:**
-- When all success criteria met
-- When you'd confidently share with your team
-- When you're proud to put it on LinkedIn
-- When strangers could use it without asking questions
-
 **Remember:**
-This is a learning project AND a portfolio piece. The journey matters as much as the destination. Document your learnings, share your struggles, and enjoy the process!
+- Ship small, iterate fast
+- 5 happy users > 50 unused features
+- Quality > speed
+- Feedback > assumptions
+- One perfect workflow > ten half-baked ones
 
----
+**When to ship:**
+- v0.2: Features complete, tests pass
+- v0.3: Team uses daily without issues
+- v0.5: Strangers can install without help
+- v0.9: Beta testers say "this is great"
+- v1.0: You'd proudly share on LinkedIn
 
-**Last Updated:** 2025-10-31
-**Current Version:** 0.1.0
-**Target Version:** 1.0.0
+Build something people love, not just something that works.
