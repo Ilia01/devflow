@@ -186,7 +186,39 @@ Showing 5 of 12 results. Use --limit to see more.
 
 ---
 
-### Feature 1.5: Complete Remaining Phase 1 Tasks
+### Feature 1.5: PAT Authentication Support
+**Branch:** `feature/pat-authentication` ✅ COMPLETED
+**Effort:** 1 day
+**Priority:** HIGH (Enterprise Jira support)
+
+**Tasks:**
+- [x] Add `AuthMethod` enum to support both PAT and API Token
+- [x] Update `JiraClient` to handle Bearer token authentication
+- [x] Update `devflow init` to prompt for auth method selection
+- [x] Update all JiraClient call sites to use new auth
+- [x] Add tests for both authentication methods
+- [x] Update README with PAT documentation
+- [x] Update ROADMAP with PAT implementation details
+
+**Why This Matters:**
+Enterprise Jira instances (Data Center/Server) don't support Cloud API tokens. Personal Access Tokens (PAT) with Bearer authentication are required for these environments.
+
+**Technical Details:**
+- PAT uses `Authorization: Bearer <token>` header
+- API Token uses `Authorization: Basic email:token` (existing)
+- `AuthMethod` enum supports both: `PersonalAccessToken` and `ApiToken`
+- Init prompts user to select authentication method (defaults to API Token for Cloud)
+
+**Config Format:**
+```toml
+[jira.auth_method]
+type = "personal_access_token"
+token = "your-pat-token"
+```
+
+---
+
+### Feature 1.6: Complete Remaining Phase 1 Tasks
 **Branch:** `feature/phase1-completion`
 **Effort:** 2-3 days
 **Priority:** HIGH (Finish what we started)

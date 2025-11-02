@@ -14,8 +14,15 @@ pub struct Settings {
 pub struct JiraConfig {
     pub url: String,
     pub email: String,
-    pub api_token: String,
     pub project_key: String,
+    pub auth_method: AuthMethod,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum AuthMethod {
+    PersonalAccessToken { token: String },
+    ApiToken { token: String },
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -101,7 +108,9 @@ mod tests {
             jira: JiraConfig {
                 url: "https://jira.example.com".to_string(),
                 email: "test@example.com".to_string(),
-                api_token: "test-token".to_string(),
+                auth_method: AuthMethod::ApiToken {
+                    token: "test-token".to_string(),
+                },
                 project_key: "TEST".to_string(),
             },
             git: GitConfig {

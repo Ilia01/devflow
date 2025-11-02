@@ -1,31 +1,51 @@
+use crate::config::settings::AuthMethod;
 use crate::models::ticket::JiraTicket;
 use anyhow::{Context, Result};
-use reqwest::Client;
+use reqwest::{Client, RequestBuilder};
+
+enum AuthConfig {
+    BearerToken { token: String },
+    BasicAuth { email: String, api_token: String },
+}
 
 pub struct JiraClient {
     client: Client,
     base_url: String,
-    email: String,
-    api_token: String,
+    auth: AuthConfig,
 }
 
 impl JiraClient {
-    pub fn new(base_url: String, email: String, api_token: String) -> Self {
+    pub fn new(base_url: String, email: String, auth_method: AuthMethod) -> Self {
+        let auth = match auth_method {
+            AuthMethod::PersonalAccessToken { token } => AuthConfig::BearerToken { token },
+            AuthMethod::ApiToken { token } => AuthConfig::BasicAuth {
+                email: email.clone(),
+                api_token: token
+            },
+        };
+
         Self {
             client: Client::new(),
             base_url,
-            email,
-            api_token,
+            auth,
+        }
+    }
+
+    fn apply_auth(&self, builder: RequestBuilder) -> RequestBuilder {
+        match &self.auth {
+            AuthConfig::BearerToken { token } => {
+                builder.header("Authorization", format!("Bearer {}", token))
+            }
+            AuthConfig::BasicAuth { email, api_token } => {
+                builder.basic_auth(email, Some(api_token))
+            }
         }
     }
 
     pub async fn get_ticket(&self, ticket_id: &str) -> Result<JiraTicket> {
         let url = format!("{}/rest/api/3/issue/{}", self.base_url, ticket_id);
 
-        let response = self
-            .client
-            .get(&url)
-            .basic_auth(&self.email, Some(&self.api_token))
+        let response = self.apply_auth(self.client.get(&url))
             .send()
             .await
             .context("Failed to send request to Jira")?;
@@ -50,10 +70,7 @@ impl JiraClient {
             self.base_url, ticket_id
         );
 
-        let transitions_response = self
-            .client
-            .get(&transitions_url)
-            .basic_auth(&self.email, Some(&self.api_token))
+        let transitions_response = self.apply_auth(self.client.get(&transitions_url))
             .send()
             .await?
             .json::<serde_json::Value>()
@@ -75,10 +92,7 @@ impl JiraClient {
             }
         });
 
-        let response = self
-            .client
-            .post(&transitions_url)
-            .basic_auth(&self.email, Some(&self.api_token))
+        let response = self.apply_auth(self.client.post(&transitions_url))
             .json(&body)
             .send()
             .await?;
@@ -100,10 +114,7 @@ impl JiraClient {
             "maxResults": 50
         });
 
-        let response = self
-            .client
-            .post(&url)
-            .basic_auth(&self.email, Some(&self.api_token))
+        let response = self.apply_auth(self.client.post(&url))
             .json(&body)
             .send()
             .await
@@ -135,10 +146,7 @@ impl JiraClient {
             "maxResults": max_results
         });
 
-        let response = self
-            .client
-            .post(&url)
-            .basic_auth(&self.email, Some(&self.api_token))
+        let response = self.apply_auth(self.client.post(&url))
             .json(&body)
             .send()
             .await
@@ -167,15 +175,29 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_jira_client_creation() {
+    fn test_jira_client_creation_with_api_token() {
         let client = JiraClient::new(
             "https://jira.example.com".to_string(),
             "test@example.com".to_string(),
-            "test-token".to_string(),
+            AuthMethod::ApiToken {
+                token: "test-token".to_string(),
+            },
         );
         assert_eq!(client.base_url, "https://jira.example.com");
-        assert_eq!(client.email, "test@example.com");
-        assert_eq!(client.api_token, "test-token");
+        assert!(matches!(client.auth, AuthConfig::BasicAuth { .. }));
+    }
+
+    #[test]
+    fn test_jira_client_creation_with_pat() {
+        let client = JiraClient::new(
+            "https://jira.example.com".to_string(),
+            "test@example.com".to_string(),
+            AuthMethod::PersonalAccessToken {
+                token: "pat-token".to_string(),
+            },
+        );
+        assert_eq!(client.base_url, "https://jira.example.com");
+        assert!(matches!(client.auth, AuthConfig::BearerToken { .. }));
     }
 
     #[tokio::test]
@@ -216,7 +238,9 @@ mod tests {
         let client = JiraClient::new(
             server.url(),
             "test@example.com".to_string(),
-            "test-token".to_string(),
+            AuthMethod::ApiToken {
+                token: "test-token".to_string(),
+            },
         );
 
         let tickets = client.search_tickets("WAB").await.unwrap();
@@ -248,7 +272,9 @@ mod tests {
         let client = JiraClient::new(
             server.url(),
             "test@example.com".to_string(),
-            "test-token".to_string(),
+            AuthMethod::ApiToken {
+                token: "test-token".to_string(),
+            },
         );
 
         let tickets = client.search_tickets("WAB").await.unwrap();
@@ -269,7 +295,9 @@ mod tests {
         let client = JiraClient::new(
             server.url(),
             "test@example.com".to_string(),
-            "invalid-token".to_string(),
+            AuthMethod::ApiToken {
+                token: "invalid-token".to_string(),
+            },
         );
 
         let result = client.search_tickets("WAB").await;
@@ -292,7 +320,9 @@ mod tests {
         let client = JiraClient::new(
             server.url(),
             "test@example.com".to_string(),
-            "test-token".to_string(),
+            AuthMethod::ApiToken {
+                token: "test-token".to_string(),
+            },
         );
 
         let result = client.search_tickets("WAB").await;
@@ -319,7 +349,9 @@ mod tests {
         let client = JiraClient::new(
             server.url(),
             "test@example.com".to_string(),
-            "test-token".to_string(),
+            AuthMethod::ApiToken {
+                token: "test-token".to_string(),
+            },
         );
 
         let result = client.search_tickets("WAB").await;
@@ -356,7 +388,9 @@ mod tests {
         let client = JiraClient::new(
             server.url(),
             "test@example.com".to_string(),
-            "test-token".to_string(),
+            AuthMethod::ApiToken {
+                token: "test-token".to_string(),
+            },
         );
 
         let tickets = client.search_with_jql("summary ~ \"login\"", 10).await.unwrap();
@@ -404,7 +438,9 @@ mod tests {
         let client = JiraClient::new(
             server.url(),
             "test@example.com".to_string(),
-            "test-token".to_string(),
+            AuthMethod::ApiToken {
+                token: "test-token".to_string(),
+            },
         );
 
         let tickets = client.search_with_jql("project = WAB", 5).await.unwrap();

@@ -36,8 +36,11 @@ devflow init
 ```
 
 This will prompt you for:
-- Jira URL and credentials (email + API token)
-- GitLab URL and access token
+- Jira URL and email
+- Authentication method:
+  - **Personal Access Token** (for Jira Data Center/Server)
+  - **API Token** (for Jira Cloud)
+- Git provider (GitHub/GitLab) and access token
 - Workflow preferences (branch prefix, default transition)
 
 **Configuration Validation:** DevFlow automatically tests your Jira connection during setup to ensure credentials are valid before saving.
@@ -127,13 +130,16 @@ Shows your current branch and working directory status.
 
 Configuration file location: `~/.devflow/config.toml`
 
-**For GitLab:**
+**For Jira Cloud with GitLab:**
 ```toml
 [jira]
-url = "https://jira.company.com"
+url = "https://your-company.atlassian.net"
 email = "you@company.com"
-api_token = "your-api-token"
-project_key = "WAB"
+project_key = "PROJ"
+
+[jira.auth_method]
+type = "api_token"
+token = "your-api-token"
 
 [git]
 provider = "gitlab"
@@ -145,13 +151,16 @@ branch_prefix = "feat"
 default_transition = "In Progress"
 ```
 
-**For GitHub:**
+**For Jira Data Center/Server with GitHub:**
 ```toml
 [jira]
 url = "https://jira.company.com"
 email = "you@company.com"
-api_token = "your-api-token"
 project_key = "PROJ"
+
+[jira.auth_method]
+type = "personal_access_token"
+token = "your-personal-access-token"
 
 [git]
 provider = "github"
@@ -167,10 +176,17 @@ default_transition = "In Progress"
 
 ### Getting API Tokens
 
-**Jira API Token:**
+**Jira Personal Access Token (Data Center/Server):**
+1. Go to your Jira instance → Profile → Personal Access Tokens
+2. Click "Create token"
+3. Give it a name and set expiration
+4. Copy and use in `devflow init`
+
+**Jira API Token (Cloud):**
 1. Go to https://id.atlassian.com/manage-profile/security/api-tokens
 2. Click "Create API token"
-3. Copy and use in `devflow init`
+3. Give it a name
+4. Copy and use in `devflow init`
 
 **GitLab Access Token:**
 1. Go to GitLab → Settings → Access Tokens

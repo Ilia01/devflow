@@ -209,7 +209,7 @@ async fn handle_done() -> anyhow::Result<()> {
     let jira = api::jira::JiraClient::new(
         settings.jira.url.clone(),
         settings.jira.email.clone(),
-        settings.jira.api_token.clone(),
+        settings.jira.auth_method.clone(),
     );
 
     let ticket = jira.get_ticket(&ticket_id).await?;
@@ -311,7 +311,7 @@ async fn handle_start(ticket_id: &str) -> anyhow::Result<()> {
     let jira = api::jira::JiraClient::new(
         settings.jira.url.clone(),
         settings.jira.email.clone(),
-        settings.jira.api_token.clone(),
+        settings.jira.auth_method.clone(),
     );
 
     let ticket = jira.get_ticket(ticket_id).await?;
@@ -437,7 +437,7 @@ async fn handle_list(
     let jira = api::jira::JiraClient::new(
         settings.jira.url.clone(),
         settings.jira.email.clone(),
-        settings.jira.api_token.clone(),
+        settings.jira.auth_method.clone(),
     );
 
     // Build JQL query with filters
@@ -511,7 +511,7 @@ async fn handle_search(
     let jira = api::jira::JiraClient::new(
         settings.jira.url.clone(),
         settings.jira.email.clone(),
-        settings.jira.api_token.clone(),
+        settings.jira.auth_method.clone(),
     );
 
     let mut jql_parts = Vec::new();
@@ -718,15 +718,32 @@ async fn handle_init() -> anyhow::Result<()> {
     let jira_url = prompt("Jira URL (e.g., https://jira.<company>.com)")?;
     let jira_email = prompt("Jira email")?;
     println!();
-    println!("{}", "To create a Jira API token:".dimmed());
-    println!(
-        "{}",
-        "  1. Go to https://id.atlassian.com/manage-profile/security/api-tokens".dimmed()
-    );
-    println!("{}", "  2. Click 'Create API token'".dimmed());
-    println!("{}", "  3. Copy and paste it here".dimmed());
-    println!();
-    let jira_token = prompt_password("Jira API token")?;
+
+    println!("{}", "Select authentication method:".bold());
+    println!("{}", "  1. Personal Access Token (for Jira Data Center/Server)".dimmed());
+    println!("{}", "  2. API Token (for Jira Cloud)".dimmed());
+    let auth_choice = prompt_with_default("Choice (1/2)", "2")?;
+
+    let auth_method = if auth_choice == "1" {
+        println!();
+        println!("{}", "To create a Personal Access Token:".dimmed());
+        println!("{}", "  1. Go to Jira → Profile → Personal Access Tokens".dimmed());
+        println!("{}", "  2. Click 'Create token'".dimmed());
+        println!("{}", "  3. Copy and paste it here".dimmed());
+        println!();
+        let token = prompt_password("Personal Access Token")?;
+        AuthMethod::PersonalAccessToken { token }
+    } else {
+        println!();
+        println!("{}", "To create a Jira API token:".dimmed());
+        println!("{}", "  1. Go to https://id.atlassian.com/manage-profile/security/api-tokens".dimmed());
+        println!("{}", "  2. Click 'Create API token'".dimmed());
+        println!("{}", "  3. Copy and paste it here".dimmed());
+        println!();
+        let token = prompt_password("Jira API token")?;
+        AuthMethod::ApiToken { token }
+    };
+
     let project_key = prompt("Default project key (e.g., WBA)")?;
 
     println!();
@@ -763,7 +780,7 @@ async fn handle_init() -> anyhow::Result<()> {
         jira: JiraConfig {
             url: jira_url.clone(),
             email: jira_email.clone(),
-            api_token: jira_token.clone(),
+            auth_method: auth_method.clone(),
             project_key: project_key.clone(),
         },
         git: GitConfig {
@@ -787,7 +804,7 @@ async fn handle_init() -> anyhow::Result<()> {
     let jira_client = api::jira::JiraClient::new(
         jira_url.clone(),
         jira_email.clone(),
-        jira_token.clone(),
+        auth_method.clone(),
     );
 
     match jira_client.search_with_jql(&format!("project = {}", project_key), 1).await {
@@ -874,11 +891,18 @@ async fn handle_test_jira(
     token: &str,
 ) -> anyhow::Result<()> {
     use colored::*;
+    use config::settings::AuthMethod;
 
     println!("{}", "Testing Jira API connection...".cyan());
     println!();
 
-    let jira = api::jira::JiraClient::new(url.to_string(), email.to_string(), token.to_string());
+    let jira = api::jira::JiraClient::new(
+        url.to_string(),
+        email.to_string(),
+        AuthMethod::ApiToken {
+            token: token.to_string(),
+        },
+    );
 
     println!("{}", format!("  Fetching ticket {}...", ticket_id).dimmed());
 
