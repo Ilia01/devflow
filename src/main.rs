@@ -96,6 +96,12 @@ enum Commands {
 
     Done,
 
+    /// Manage configuration
+    Config {
+        #[command(subcommand)]
+        action: ConfigAction,
+    },
+
     /// Test Jira API connection (temporary)
     #[command(hide = true)]
     TestJira {
@@ -107,6 +113,26 @@ enum Commands {
         #[arg(long)]
         token: String,
     },
+}
+
+#[derive(Subcommand)]
+enum ConfigAction {
+    /// Display current configuration (with masked secrets)
+    Show,
+
+    /// Set a specific configuration value
+    Set {
+        /// Configuration key (e.g., jira.email, jira.url, git.token)
+        key: String,
+        /// New value
+        value: String,
+    },
+
+    /// Validate configuration by testing API connections
+    Validate,
+
+    /// Get the path to the config file
+    Path,
 }
 
 #[tokio::main]
@@ -136,6 +162,8 @@ async fn main() {
         Commands::Commit { message } => handle_commit(&message),
 
         Commands::Done => handle_done().await,
+
+        Commands::Config { action } => handle_config(action).await,
 
         Commands::TestJira {
             ticket_id,
@@ -881,6 +909,173 @@ fn prompt_with_default(message: &str, default: &str) -> anyhow::Result<String> {
         Ok(default.to_string())
     } else {
         Ok(trimmed.to_string())
+    }
+}
+
+async fn handle_config(action: ConfigAction) -> anyhow::Result<()> {
+    use colored::*;
+    use config::settings::Settings;
+
+    match action {
+        ConfigAction::Show => {
+            let settings = Settings::load()?;
+
+            println!("{}", "Current Configuration".cyan().bold());
+            println!();
+
+            println!("{}", "[jira]".bold());
+            println!("  {} {}", "url:".dimmed(), settings.jira.url.bright_white());
+            println!("  {} {}", "email:".dimmed(), settings.jira.email.bright_white());
+
+            // Mask the token
+            let masked_token = match &settings.jira.auth_method {
+                config::settings::AuthMethod::PersonalAccessToken { token } => {
+                    format!("{}***{}", &token[..4.min(token.len())], &token[token.len().saturating_sub(4)..])
+                }
+                config::settings::AuthMethod::ApiToken { token } => {
+                    format!("{}***{}", &token[..4.min(token.len())], &token[token.len().saturating_sub(4)..])
+                }
+            };
+
+            let auth_type = match settings.jira.auth_method {
+                config::settings::AuthMethod::PersonalAccessToken { .. } => "Personal Access Token",
+                config::settings::AuthMethod::ApiToken { .. } => "API Token",
+            };
+
+            println!("  {} {}", "auth_method:".dimmed(), auth_type.bright_white());
+            println!("  {} {}", "token:".dimmed(), masked_token.yellow());
+            println!("  {} {}", "project_key:".dimmed(), settings.jira.project_key.bright_white());
+
+            println!();
+            println!("{}", "[git]".bold());
+            println!("  {} {}", "provider:".dimmed(), settings.git.provider.bright_white());
+            println!("  {} {}", "base_url:".dimmed(), settings.git.base_url.bright_white());
+
+            let masked_git_token = format!(
+                "{}***{}",
+                &settings.git.token[..4.min(settings.git.token.len())],
+                &settings.git.token[settings.git.token.len().saturating_sub(4)..]
+            );
+            println!("  {} {}", "token:".dimmed(), masked_git_token.yellow());
+
+            if let Some(owner) = &settings.git.owner {
+                println!("  {} {}", "owner:".dimmed(), owner.bright_white());
+            }
+            if let Some(repo) = &settings.git.repo {
+                println!("  {} {}", "repo:".dimmed(), repo.bright_white());
+            }
+
+            println!();
+            println!("{}", "[preferences]".bold());
+            println!("  {} {}", "branch_prefix:".dimmed(), settings.preferences.branch_prefix.bright_white());
+            println!("  {} {}", "default_transition:".dimmed(), settings.preferences.default_transition.bright_white());
+
+            Ok(())
+        }
+
+        ConfigAction::Set { key, value } => {
+            let mut settings = Settings::load()?;
+
+            // Parse the key to determine what to set
+            let parts: Vec<&str> = key.split('.').collect();
+            if parts.len() != 2 {
+                return Err(anyhow::anyhow!("Invalid key format. Use format: section.field (e.g., jira.email)"));
+            }
+
+            let section = parts[0];
+            let field = parts[1];
+
+            match (section, field) {
+                ("jira", "url") => settings.jira.url = value.clone(),
+                ("jira", "email") => settings.jira.email = value.clone(),
+                ("jira", "token") => {
+                    // Update the token in the existing auth method
+                    settings.jira.auth_method = match settings.jira.auth_method {
+                        config::settings::AuthMethod::PersonalAccessToken { .. } => {
+                            config::settings::AuthMethod::PersonalAccessToken { token: value.clone() }
+                        }
+                        config::settings::AuthMethod::ApiToken { .. } => {
+                            config::settings::AuthMethod::ApiToken { token: value.clone() }
+                        }
+                    };
+                }
+                ("jira", "project_key") => settings.jira.project_key = value.clone(),
+                ("git", "provider") => settings.git.provider = value.clone(),
+                ("git", "base_url") => settings.git.base_url = value.clone(),
+                ("git", "token") => settings.git.token = value.clone(),
+                ("git", "owner") => settings.git.owner = Some(value.clone()),
+                ("git", "repo") => settings.git.repo = Some(value.clone()),
+                ("preferences", "branch_prefix") => settings.preferences.branch_prefix = value.clone(),
+                ("preferences", "default_transition") => settings.preferences.default_transition = value.clone(),
+                _ => return Err(anyhow::anyhow!("Unknown configuration key: {}", key)),
+            }
+
+            settings.save()?;
+
+            println!("{}", format!("✓ Updated {} to: {}", key, value).green().bold());
+            println!();
+            println!("{}", "Configuration saved successfully!".green());
+
+            Ok(())
+        }
+
+        ConfigAction::Validate => {
+            println!("{}", "Validating configuration...".cyan().bold());
+            println!();
+
+            let settings = Settings::load()?;
+
+            // Test Jira connection
+            print!("{}", "  Testing Jira connection... ".dimmed());
+            std::io::Write::flush(&mut std::io::stdout())?;
+
+            let jira = api::jira::JiraClient::new(
+                settings.jira.url.clone(),
+                settings.jira.email.clone(),
+                settings.jira.auth_method.clone(),
+            );
+
+            match jira.search_with_jql(&format!("project = {}", settings.jira.project_key), 1).await {
+                Ok(_) => {
+                    println!("{}", "✓".green().bold());
+                }
+                Err(e) => {
+                    println!("{}", "✗".red().bold());
+                    println!();
+                    println!("{}", format!("  Jira connection failed: {}", e).red());
+                    println!();
+                    println!("{}", "  To fix:".yellow());
+                    println!("{}", "    1. Check your Jira URL is correct".dimmed());
+                    println!("{}", "    2. Verify your authentication token is valid".dimmed());
+                    println!("{}", "    3. Update with: devflow config set jira.token <new-token>".dimmed());
+                    return Err(anyhow::anyhow!("Jira validation failed"));
+                }
+            }
+
+            // Test Git token (basic check)
+            print!("{}", "  Checking Git token... ".dimmed());
+            std::io::Write::flush(&mut std::io::stdout())?;
+
+            if settings.git.token.is_empty() {
+                println!("{}", "✗".red().bold());
+                println!();
+                println!("{}", "  Git token is empty".red());
+                return Err(anyhow::anyhow!("Git token validation failed"));
+            } else {
+                println!("{}", "✓".green().bold());
+            }
+
+            println!();
+            println!("{}", "✓ All validations passed!".green().bold());
+
+            Ok(())
+        }
+
+        ConfigAction::Path => {
+            let config_path = Settings::config_dir()?.join("config.toml");
+            println!("{}", config_path.display());
+            Ok(())
+        }
     }
 }
 

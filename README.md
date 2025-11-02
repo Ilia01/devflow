@@ -210,6 +210,40 @@ default_transition = "In Progress"
 | `devflow open [ticket]` | Open ticket or PR in browser |
 | `devflow commit <message>` | Commit with automatic ticket reference |
 | `devflow done` | Push, create MR, and update Jira |
+| `devflow config <action>` | Manage configuration (show/set/validate/path) |
+
+### Config Management
+
+Instead of re-running `devflow init` to update your configuration, you can now use the config commands:
+
+```bash
+# View current configuration (with masked secrets)
+devflow config show
+
+# Update a specific value (e.g., if your Jira token expired)
+devflow config set jira.token <new-token>
+devflow config set jira.email <new-email>
+devflow config set git.token <new-token>
+
+# Validate your configuration by testing API connections
+devflow config validate
+
+# Get the path to your config file
+devflow config path
+```
+
+Available config keys:
+- `jira.url` - Your Jira instance URL
+- `jira.email` - Your Jira email
+- `jira.token` - Your Jira authentication token
+- `jira.project_key` - Default project key
+- `git.provider` - Git provider (github/gitlab)
+- `git.base_url` - Git instance URL
+- `git.token` - Git access token
+- `git.owner` - GitHub repository owner
+- `git.repo` - GitHub repository name
+- `preferences.branch_prefix` - Default branch prefix
+- `preferences.default_transition` - Default Jira transition
 
 ## Branch Naming Convention
 
