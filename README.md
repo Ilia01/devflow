@@ -8,23 +8,33 @@ A blazing-fast CLI tool for automating Jira/Git workflows. Stop context switchin
 - **Smart Branch Naming**: Automatically generates clean branch names from ticket summaries
 - **Automatic Commit Formatting**: Links commits to Jira tickets automatically
 - **PR/MR Automation**: Push, create pull/merge requests, and update Jira status in one command
-- **Fast & Lightweight**: Written in Rust, single binary, no runtime dependencies
+- **Fast & Lightweight**: Written in Go, single binary, no runtime dependencies
 - **Universal**: Works with any Jira instance, GitHub, and GitLab
 
 ## Installation
 
-### From Source
+### Using Go
+
+Requires Go 1.21+.
+
+```bash
+go install github.com/Ilia01/devflow/cmd/devflow@latest
+```
+
+Make sure `~/go/bin` (or your configured `GOBIN`) is on your `PATH`:
+
+```bash
+echo 'export PATH="$HOME/go/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+```
+
+### Build From Source
 
 ```bash
 git clone https://github.com/Ilia01/devflow.git
 cd devflow
-cargo install --path .
-```
-
-Make sure `~/.cargo/bin` is in your PATH:
-```bash
-echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> ~/.zshrc
-source ~/.zshrc
+go build -o devflow ./cmd/devflow
+./devflow --help
 ```
 
 ## Quick Start
@@ -197,6 +207,18 @@ default_transition = "In Progress"
 1. Go to GitHub → Settings → Developer settings → Personal access tokens → Generate new token
 2. Select `repo` scope (full control of private repositories)
 3. Copy and use in `devflow init`
+
+## Development
+
+```bash
+go test ./...
+```
+
+To build a local binary:
+
+```bash
+go build -o devflow ./cmd/devflow
+```
 
 ## Commands
 
