@@ -277,24 +277,6 @@ cargo build --release
 cargo test
 ```
 
-### Project Structure
-
-```
-devflow/
-├── src/
-│   ├── main.rs           # CLI entry point and command handlers
-│   ├── api/
-│   │   ├── git.rs        # Git operations via libgit2
-│   │   ├── jira.rs       # Jira REST API client
-│   │   └── gitlab.rs     # GitLab API client
-│   ├── config/
-│   │   └── settings.rs   # Configuration management
-│   └── models/
-│       └── ticket.rs     # Jira ticket data structures
-├── Cargo.toml
-└── README.md
-```
-
 ## Troubleshooting
 
 ### "Configuration not found" error
